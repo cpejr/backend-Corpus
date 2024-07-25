@@ -1,16 +1,17 @@
 import CategoryValidator from "../Validators/CategoryValidator.js";
 import CategoryController from "../Controllers/CategoryController.js";
 import express from "express";
+import verifyJWT from "../Middlewares/VerifyJwt.js";
 
 const CategoryRoutes  = express.Router();
 
-CategoryRoutes.post("/category", CategoryValidator.create, CategoryController.Create);
+CategoryRoutes.post("/", verifyJWT, CategoryValidator.create, CategoryController.Create);
 
-CategoryRoutes.get("/category", CategoryController.Read);
+CategoryRoutes.get("/", verifyJWT, CategoryController.Read);
 
-CategoryRoutes.delete("/category/:id", CategoryValidator.destroy, CategoryController.Delete);
+CategoryRoutes.delete("/:id", verifyJWT, CategoryValidator.destroy, CategoryController.Delete);
 
-CategoryRoutes.put("/category/:id", CategoryValidator.update, CategoryController.Update);
+CategoryRoutes.put("/:id", verifyJWT, CategoryValidator.update, CategoryController.Update);
 
 
 export default CategoryRoutes;

@@ -1,14 +1,15 @@
 import VideoValidator from "../Validators/VideoValidator.js";
 import VideoController from "../Controllers/VideoController.js";
 import express from "express";
+import verifyJWT from "../Middlewares/VerifyJwt.js";
 
 const VideoRoutes = express.Router();
 
-VideoRoutes.post("/video", VideoValidator.insert, VideoController.InsertVideo);
+VideoRoutes.post("/", verifyJWT, VideoValidator.insert, VideoController.InsertVideo);
 
-VideoRoutes.get("/video", VideoController.GetVideo);
+VideoRoutes.get("/", verifyJWT, VideoController.GetVideo);
 
-VideoRoutes.delete("/video/:id", VideoValidator.destroy, VideoController.DeleteVideo);
+VideoRoutes.delete("/:id", verifyJWT, VideoValidator.destroy, VideoController.DeleteVideo);
 
 
 export default VideoRoutes;
