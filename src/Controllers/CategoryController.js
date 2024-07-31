@@ -1,52 +1,48 @@
 import CategoryModel from "../Models/CategoryModel.js";
+import { NotFoundError } from "../Errors/baseErrors.js";
 
 class CategoryController {
-async Create(req, res) {
+  async Create(req, res) {
     try {
-      const video = await VideoModel.create(req.body);
+      const category = await CategoryModel.create(req.body);
 
-      return res.status(200).json(video);
+      return res.status(200).json(category);
     } catch (error) {
-      res
-        .status(500)
-        .json({ message: "Não foi possível criar video", error: error.message });
+      next(new NotFoundError(`Route '${req.baseUrl}' not found`));
+      //res.status(500).json({ message: "Não foi possível criar categoria", error: error.message });
     }
   }
 
   async Read(req, res) {
     try {
-      const video = await VideoModel.find();
-      return res.status(200).json(video);
+      const category = await CategoryModel.find();
+      return res.status(200).json(category);
     } catch (error) {
-      res
-        .status(500)
-        .json({ message: "Não foi possível ler video", error: error.message });
+      res.status(500).json({ message: "Não foi possível ler categoria", error: error.message });
     }
   }
 
   async Update(req, res) {
     try {
       const { id } = req.params;
-      const video = await VideoModel.findByIdAndUpdate(id, req.body, { new: true });
+      const category = await CategoryModel.findByIdAndUpdate(id, req.body, { new: true });
 
-      return res.status(200).json(video);
+      return res.status(200).json(category);
     } catch (error) {
       res
         .status(500)
-        .json({ message: "Não foi possível atualizar video", error: error.message });
+        .json({ message: "Não foi possível atualizar categoria", error: error.message });
     }
   }
   async Delete(req, res) {
     try {
       const { id } = req.params;
 
-      await VideoModel.findByIdAndDelete(id);
+      await CategoryModel.findByIdAndDelete(id);
 
-      return res.status(200).json({ mensagem: "Video deletado com sucesso!" });
+      return res.status(200).json({ mensagem: "Categoria deletado com sucesso!" });
     } catch (error) {
-      res
-        .status(500)
-        .json({ message: "Não foi possível deletar video", error: error.message });
+      res.status(500).json({ message: "Não foi possível deletar categoria", error: error.message });
     }
   }
 }
