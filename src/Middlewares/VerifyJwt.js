@@ -17,10 +17,10 @@ function verifyJwt(req, res, next) {
 
   jwt.verify(token, process.env.JWT_SECRET, (error, user) => {
     if (error && token != process.env.JWT_SECRET) {
+      console.log(process.env.JWT_SECRET);
       return res.status(403).json({ message: "Jwt token é inválido" });
     }
-    
-    
+
     // Lógica de login ainda não está pronta
     //req.userId = user._id;
     //req.userType = user.type;
