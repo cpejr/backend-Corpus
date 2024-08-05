@@ -10,7 +10,6 @@ class VideosController {
       return res.status(200).json(video);
     } catch (error) {
       next(new ForbiddenError(`Route '${req.baseUrl}' forbidden`));
-      //res.status(500).json({ message: "Não foi possível criar video", error: error.message });
     }
   }
   async GetVideo(req, res) {
@@ -19,7 +18,6 @@ class VideosController {
       return res.status(200).json(video);
     } catch (error) {
       next(new NotFoundError(`Route '${req.baseUrl}' not found`));
-      //res.status(500).json({ message: "Não foi possível ler video", error: error.message });
     }
   }
 
@@ -32,7 +30,6 @@ class VideosController {
       return res.status(200).json({ mensagem: "Video deletado com sucesso!" });
     } catch (error) {
       next(new ForbiddenError(`Route '${req.baseUrl}' forbidden`));
-      //res.status(500).json({ message: "Não foi possível deletar Video", error: error.message });
     }
   }
 }

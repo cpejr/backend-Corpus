@@ -10,7 +10,6 @@ class CategoryController {
       return res.status(200).json(category);
     } catch (error) {
       next(new ForbiddenError(`Route '${req.baseUrl}' forbidden`));
-      //res.status(500).json({ message: "Não foi possível criar categoria", error: error.message });
     }
   }
 
@@ -20,7 +19,6 @@ class CategoryController {
       return res.status(200).json(category);
     } catch (error) {
       next(new NotFoundError(`Route '${req.baseUrl}' not found`));
-      //res.status(500).json({ message: "Não foi possível ler categoria", error: error.message });
     }
   }
 
@@ -45,7 +43,6 @@ class CategoryController {
       return res.status(200).json({ mensagem: "Categoria deletado com sucesso!" });
     } catch (error) {
       next(new ForbiddenError(`Route '${req.baseUrl}' forbidden`));
-      //res.status(500).json({ message: "Não foi possível deletar categoria", error: error.message });
     }
   }
 }
