@@ -8,6 +8,10 @@ const VideosSchema = new Schema({
         required: true,
         trim: false,
     },
+    id_category: {
+	type: Schema.Types.ObjectId,
+        ref: 'projeto',
+    },
     resume: {
         type: String,
         required: true,
@@ -16,7 +20,9 @@ const VideosSchema = new Schema({
     file: {
         type: Boolean,
         required: true,
-    }
+    },
+},{
+    timestamps: true
 });
 
 const VideosModel = mongoose.model("videos", VideosSchema);

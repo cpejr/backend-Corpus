@@ -2,33 +2,29 @@ import mongoose from "mongoose";
 import { z } from "zod";
 import { validateRequest } from "zod-express-middleware";
 
-const create = validateRequest({
+const insert = validateRequest({
     body: z.object({
-    	name: z.string({ required_error: "O Nome é obrigatório" }),
+    	title: z.string({ required_error: "O titulo é obrigatório" }),
+    	id_category: z.custom(mongoose.isValidObjectId, "O id do usuário não é válido"),
+    	resume: z.string({ required_error: "O resumo é obrigatório" }),
+    	file: z.boolean().optional(),
     }),
 });
-const read = validateRequest({
+const get = validateRequest({
     params: z.object({
         id: z.custom(mongoose.isValidObjectId, "O id não é válido"),
     }),
-});
-const update = validateRequest({
-    body: z.object({
-    	name: z.string().optional(),
-    }),
-    params: z.object({
-        id: z.custom(mongoose.isValidObjectId, "O id não é válido"),
-    }),
+
 });
 const destroy = validateRequest({
     params: z.object({
         id: z.custom(mongoose.isValidObjectId, "O id não é válido"),
     }),
+
 });
 
 export default {
-    create,
-    read,
-    update,
+    insert,
+    get,
     destroy,
 };

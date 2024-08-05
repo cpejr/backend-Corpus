@@ -8,6 +8,6 @@ const CategorySchema = new Schema({
     },
 });
 
-const CategoryModel = mongoose.model("videos", CategorySchema);
+const CategoryModel = mongoose.model("category", CategorySchema);
 
 export default CategoryModel;
