@@ -10,9 +10,11 @@ class UserController {
     try {
       const user = await UserModel.create(req.body);
 
-      return res.status(200).json(user);
+      const { password, ...newUser } = user.toObject();
+
+      return res.status(200).json(newUser);
     } catch (error) {
-      next(new ForbiddenError(`Route '${req.baseUrl}' forbidden`));
+      res.status(500).json({ message: "ERRO!", error: error.message });
     }
   }
   async Read(req, res) {
