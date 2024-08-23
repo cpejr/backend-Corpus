@@ -17,6 +17,7 @@ class UserController {
       res.status(500).json({ message: "ERRO!", error: error.message });
     }
   }
+  
   async Read(req, res) {
     try {
       const user = await UserModel.find();
@@ -46,6 +47,9 @@ class UserController {
       next(new ForbiddenError(`Route '${req.baseUrl}' forbidden`));
     }
   }
+
+  
+
 }
 
 export default new UserController();

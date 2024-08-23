@@ -29,7 +29,11 @@ const UserSchema = new Schema({
     birthday: {
         type: String,
         required: true,
-    }
+    },
+    phone: {
+        type: String,
+        required: true
+    },
 });
 
 UserSchema.pre("save", async function(next){
