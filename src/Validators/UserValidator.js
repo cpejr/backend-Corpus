@@ -20,6 +20,7 @@ const read = validateRequest({
         id: z.custom(mongoose.isValidObjectId, "O id não é válido"),
     }),
 });
+
 const update = validateRequest({
     body: z.object({
     	name: z.string().optional(),
@@ -31,9 +32,25 @@ const update = validateRequest({
     	id: z.custom(mongoose.isValidObjectId, "O id não é válido"),
   }),
 });
+
 const destroy = validateRequest({
     params: z.object({
         id: z.custom(mongoose.isValidObjectId, "O id não é válido"),
+    }),
+});
+
+const forgotPassword = validateRequest({
+    body: z.object({
+        email: z.string({ required_error: 'E-mail do usuário é obrigatório' }).email("O email deve ser válido!"),
+    }),
+});
+  
+const redefinePassword = validateRequest({
+    body: z.object({
+        newPassword: z.string({ required_error: 'Nova senha é obrigatória' }),
+    }),
+    params: z.object({
+        token: z.string({ required_error: 'O token de senha esquecida do usuário é obrigatório', }),
     }),
 });
 
@@ -42,5 +59,7 @@ export default {
   read,
   update,
   destroy,
+  forgotPassword,
+  redefinePassword,
 };
 
