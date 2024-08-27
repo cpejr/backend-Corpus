@@ -10,4 +10,8 @@ UserRoutes.get("/", verifyJWT, UserController.Read);
 UserRoutes.delete("/:id", verifyJWT, UserValidator.destroy, UserController.Destroy);
 UserRoutes.put("/:id", verifyJWT, UserValidator.update, UserController.Update);
 
+UserRoutes.post("/forgot-password", UserValidator.forgotPassword, UserController.ForgotPassword);
+UserRoutes.put("/forgot-password/:token", UserValidator.redefinePassword, UserController.RedifinePassword);
+
+
 export default UserRoutes;
