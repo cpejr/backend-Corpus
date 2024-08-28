@@ -1,8 +1,8 @@
-const bcrypt = require("bcrypt");
+import bcrypt from 'bcrypt';
 import UserModel from "../Models/UserModel.js";
 import UserSessionTokenModel from "../Models/UserSessionTokenModel.js";
-import { signSessionJwts } from "../Utils/general/jwt";
-import { formatExpiresAt } from "../Utils/general/formatExpiresAt";
+import { signSessionJwts } from "../Utils/general/jwt.js";
+import { formatExpiresAt } from "../Utils/general/formatExpiresAt.js";
 import { cookieAuthName, deleteCookieOptions, createCookieOptions } from "../Utils/general/CookieAuth.js";
 
 class SessionController {

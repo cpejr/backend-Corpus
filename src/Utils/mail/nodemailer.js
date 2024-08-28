@@ -21,7 +21,8 @@ const transporterConfig = {
 };
 
 const transporter = nodemailer.createTransport(
-  transporterConfig[process.env.NODE_ENV]
+  // transporterConfig[process.env.NODE_ENV]
+  transporterConfig['development']
 );
 
 export default async function sendEmail(request) {

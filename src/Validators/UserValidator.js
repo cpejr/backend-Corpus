@@ -7,9 +7,7 @@ const create = validateRequest({
     	name: z.string({ required_error: "O nome é obrigatório" }),
     	email: z.string({ required_error: "O email é obrigatório" }).email("O email deve ser válido!"),
     	password: z.string({ required_error: "A senha é obrigatória" }).min(4, 'Senha do usuário precisa ter pelo menos 4 caracteres!').max(16, "Senha do usuário não pode ultrapassar 16 caracteres"),
-        birthday: z.string().refine((val) => !isNaN(Date.parse(val)), {
-            message: 'Formato de data inválido',
-          }).transform((val) => new Date(val)), // year-month-day
+        birthday: z.string({ required_error: "A data de nascimento é obrigatória" }),
         phone: z.string({ required_error: "O telefone é obrigatório" }).min(13, "Coloque um número de telefone válido").max(13, "Coloque um número de telefone válido"),
     	type: z.boolean().optional(),
     }),
