@@ -25,12 +25,12 @@ class SessionController {
             if (!foundToken)
                 await UserSessionTokenModel.deleteMany({ user: foundUser._id });
             }
-  
+        
         const { createdAt, updatedAt, password: pass, ...tokenUserData } = foundUser;
-  
+        
         const { accessToken, refreshToken } = signSessionJwts(tokenUserData);
-  
-        const expiresAt = formatExpiresAt(process.env.REFRESH_TOKEN_EXPIRE); // in seconds
+        
+        const expiresAt = formatExpiresAt(process.env.REFRESH_TOKEN_EXPIRE);
 
         await UserSessionTokenModel.create({
             user: foundUser._id,
