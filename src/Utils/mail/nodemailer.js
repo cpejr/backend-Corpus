@@ -17,6 +17,7 @@ export default async function sendEmail(request) {
     from: `${process.env.EMAIL_FROM}`,
     ...request,
   };
+
   try {
     await transporter.sendMail(config);
   } catch (error) {

@@ -1,6 +1,6 @@
 import UserModel from "../Models/UserModel.js";
 import UserPwdTokenModel from "../Models/UserPwdTokenModel.js";
-import { signForgotPasswordJwt } from "../Utils/general/jwt.js";
+import { decodeForgotPasswordToken, signForgotPasswordJwt } from "../Utils/general/jwt.js";
 import * as EmailHandler from "../Utils/mail/handlers.js"
 
 class UserController {
@@ -60,16 +60,17 @@ class UserController {
       const passwordToken = signForgotPasswordJwt(foundUser._id);
 
       await UserPwdTokenModel.deleteMany({ user: foundUser._id }).exec();
+      
       await UserPwdTokenModel.create({
         user: foundUser._id,
         token: passwordToken,
       });
-
+      
       await EmailHandler.redefinePasswordEmail({
         user: foundUser,
         passwordToken,
       });
-
+      
       return res.status(200).json({ mensagem: "E-mail de recuperação enviado com sucesso!" });
 
     } catch (error) {

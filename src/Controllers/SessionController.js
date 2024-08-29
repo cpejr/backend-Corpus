@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import UserModel from "../Models/UserModel.js";
 import UserSessionTokenModel from "../Models/UserSessionTokenModel.js";
-import { signSessionJwts } from "../Utils/general/jwt.js";
+import { decodeRefreshToken, signSessionJwts } from "../Utils/general/jwt.js";
 import { formatExpiresAt } from "../Utils/general/formatExpiresAt.js";
 import { cookieAuthName, deleteCookieOptions, createCookieOptions } from "../Utils/general/CookieAuth.js";
 
@@ -28,7 +28,7 @@ class SessionController {
         
         const { createdAt, updatedAt, password: pass, ...tokenUserData } = foundUser;
         
-        const { accessToken, refreshToken } = signSessionJwts(tokenUserData);
+        const { accessToken, refreshToken } = signSessionJwts(tokenUserData._doc);
         
         const expiresAt = formatExpiresAt(process.env.REFRESH_TOKEN_EXPIRE);
 
@@ -46,15 +46,16 @@ class SessionController {
 
     async RefreshToken(req, res){
         try {
-            const { oldRefreshToken } = req.signedCookies[cookieAuthName];
+            const oldRefreshToken = req.signedCookies[cookieAuthName];
             res.clearCookie(cookieAuthName, deleteCookieOptions);
-
+            
             if (!oldRefreshToken)
                 return res.status(401).json({ message: "Token de refresh não fornecido" });
-
+            
             const decoded = await decodeRefreshToken(oldRefreshToken);
-            const foundToken = await UserSessionTokenModel.findOne({ token: oldRefreshToken }).exec();
-
+            
+            const foundToken = await UserSessionTokenModel.findOne({ token: oldRefreshToken });
+            
             if (!foundToken) {
                 const hackedUser = await UserModel.findOne({
                   _id: decoded.userId,
@@ -64,18 +65,19 @@ class SessionController {
                 return res.status(404).json({ message: "Reutilização de token" });
             }
 
-            const userId = foundToken.user._id.toString();
+            const userId = foundToken?.user?._id.toString();
+            
             if (userId != decoded.userId) 
-                return res.status(404).json({ message: "tampered token" });
-
+                return res.status(404).json({ message: "Token adulterado" });
+            
             await foundToken.deleteOne();
-
+            
             const { createdAt, updatedAt, password: pass, ...tokenUserData } = foundToken.user.toObject({ virtuals: true });
-
+            
             const { accessToken, refreshToken } = signSessionJwts(tokenUserData);
             
             const expiresAt = formatExpiresAt(process.env.REFRESH_TOKEN_EXPIRE);
-
+            
             await UserSessionTokenModel.create({
                 user: userId,
                 token: refreshToken,
@@ -90,13 +92,14 @@ class SessionController {
 
     async Logout(req, res){
         try {
-            const { token } = req.signedCookies[cookieAuthName];
+            const token = req.signedCookies[cookieAuthName];
+        
             if(!token)
                 return res.status(204).json({ message: "Operação realizada" });
 
             UserSessionTokenModel.findOneAndDelete({ token }).exec();
-
-            return res.clearCookie(cookieAuthName, deleteCookieOptions).status(204);
+            
+            return res.clearCookie(cookieAuthName, deleteCookieOptions).sendStatus(204);
 
         } catch (error) {
             res.status(500).json({ message: "ERRO!", error: error.message });

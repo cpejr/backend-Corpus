@@ -16,7 +16,7 @@ export function redefinePasswordEmail({ user, passwordToken }) {
         >
       </p>
     `;
-  
+    
     const mailOptions = {
       to: user.email,
       subject: `[Corpus] - Confirmação de email`,
@@ -25,6 +25,6 @@ export function redefinePasswordEmail({ user, passwordToken }) {
       `,
       html: template(body),
     };
-  
+    
     return sendEmail(mailOptions);
   }
