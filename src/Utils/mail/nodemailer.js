@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer';
 const transporterConfig = {
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
-    secure: false,
+    secure: true,
     auth: {
       user: process.env.EMAIL_FROM,
       pass: process.env.EMAIL_PASSWORD,

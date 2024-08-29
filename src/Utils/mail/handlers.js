@@ -11,7 +11,7 @@ export function redefinePasswordEmail({ user, passwordToken }) {
         <a
           href="${`${
             process.env.FRONTEND_URL
-          }/redefinir-senha/${encodeURIComponent(passwordToken)}`}"
+          }redefine-password/${encodeURIComponent(passwordToken)}`}"
           >aqui.</a
         >
       </p>
