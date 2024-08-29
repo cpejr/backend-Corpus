@@ -1,15 +1,6 @@
 import nodemailer from 'nodemailer';
 
 const transporterConfig = {
-  development: {
-    host: 'localhost',
-    port: 1025,
-    secure: false,
-    tls: {
-      rejectUnauthorized: false,
-    },
-  },
-  production: {
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
     secure: false,
@@ -17,13 +8,9 @@ const transporterConfig = {
       user: process.env.EMAIL_FROM,
       pass: process.env.EMAIL_PASSWORD,
     },
-  },
 };
 
-const transporter = nodemailer.createTransport(
-  // transporterConfig[process.env.NODE_ENV]
-  transporterConfig['development']
-);
+const transporter = nodemailer.createTransport(transporterConfig);
 
 export default async function sendEmail(request) {
   const config = {
