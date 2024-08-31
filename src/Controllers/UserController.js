@@ -104,7 +104,7 @@ class UserController {
         return res.status(403).json({ message: "Token expirado ou não encontrado" });
       }
         if (userId !== foundToken.user.toString()) {
-        return res.status(401).json({ message: "Token adulterado" });
+        return res.status(403).json({ message: "Token adulterado" });
       }
       await foundToken.deleteOne();
 
