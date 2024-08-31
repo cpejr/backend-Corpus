@@ -14,7 +14,7 @@ class SessionController {
         const foundUser = await UserModel.findOne({ email }).select('+password');
 
         if (!foundUser) {
-            return res.status(401).json({ message: "Usuário não existe. Realize o cadastro!" });
+            return res.status(404).json({ message: "Usuário não existe. Realize o cadastro!" });
         }
         const isMatch = await bcrypt.compare(password, foundUser.password);
         if (!isMatch) {
