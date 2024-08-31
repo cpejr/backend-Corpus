@@ -54,9 +54,9 @@ class UserController {
       const { email } = req.body;
 
       const foundUser = await UserModel.findOne({ email, });
-      if (!foundUser) 
+      if (!foundUser) {
         return res.status(404).json({ message: "Usuário não encontrado" });
-
+      }
       const passwordToken = signForgotPasswordJwt(foundUser._id);
 
       await UserPwdTokenModel.deleteMany({ user: foundUser._id }).exec();
@@ -90,13 +90,15 @@ class UserController {
         UserPwdTokenModel.findOne({ token }).exec(),
       ]);
 
-      if (!foundUser) 
+      if (!foundUser) {
         return res.status(404).json({ message: "Usuário não encontrado" });
-      if (!foundToken) 
+      }
+        if (!foundToken) {
         return res.status(403).json({ message: "Token expirado ou não encontrado" });
-      if (userId !== foundToken.user.toString())
+      }
+        if (userId !== foundToken.user.toString()) {
         return res.status(403).json({ message: "Token adulterado" });
-
+      }
       await foundToken.deleteOne();
 
       const updatedUser = foundUser.set({ password: newPassword }).save();

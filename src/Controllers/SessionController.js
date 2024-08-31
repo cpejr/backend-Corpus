@@ -13,17 +13,18 @@ class SessionController {
 
         const foundUser = await UserModel.findOne({ email }).select('+password');
 
-        if (!foundUser) 
+        if (!foundUser) {
             return res.status(401).json({ message: "Usuário não existe. Realize o cadastro!" });
-  
+        }
         const isMatch = await bcrypt.compare(password, foundUser.password);
-        if (!isMatch) 
+        if (!isMatch) {
             return res.status(401).json({ message: "E-mail ou senha incorreto" });
-  
+        }
         if (token) {
             const foundToken = await UserSessionTokenModel.findOne({ token, });
-            if (!foundToken)
+            if (!foundToken) {
                 await UserSessionTokenModel.deleteMany({ user: foundUser._id });
+                }
             }
         
         const { createdAt, updatedAt, password: pass, ...tokenUserData } = foundUser;
@@ -49,9 +50,9 @@ class SessionController {
             const oldRefreshToken = req.signedCookies[cookieAuthName];
             res.clearCookie(cookieAuthName, deleteCookieOptions);
             
-            if (!oldRefreshToken)
+            if (!oldRefreshToken) {
                 return res.status(401).json({ message: "Token de refresh não fornecido" });
-            
+            }
             const decoded = await decodeRefreshToken(oldRefreshToken);
             
             const foundToken = await UserSessionTokenModel.findOne({ token: oldRefreshToken });
@@ -67,9 +68,9 @@ class SessionController {
 
             const userId = foundToken?.user?._id.toString();
             
-            if (userId != decoded.userId) 
+            if (userId != decoded.userId) {
                 return res.status(404).json({ message: "Token adulterado" });
-            
+            }
             await foundToken.deleteOne();
             
             const { createdAt, updatedAt, password: pass, ...tokenUserData } = foundToken.user.toObject({ virtuals: true });
@@ -94,9 +95,9 @@ class SessionController {
         try {
             const token = req.signedCookies[cookieAuthName];
         
-            if(!token)
+            if(!token) {
                 return res.status(204).json({ message: "Operação realizada" });
-
+            }
             UserSessionTokenModel.findOneAndDelete({ token }).exec();
             
             return res.clearCookie(cookieAuthName, deleteCookieOptions).sendStatus(204);
