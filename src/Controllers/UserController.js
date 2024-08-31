@@ -7,6 +7,13 @@ class UserController {
 
   async Create(req, res) {
     try {
+      const { email } = req.body;
+
+      const foundUser = await UserModel.findOne({ email, });
+      if (foundUser) {
+        return res.status(409).json({ message: "Usuário já cadastrado!" });
+      }
+
       const user = await UserModel.create(req.body);
 
       const { password, ...newUser } = user.toObject();
