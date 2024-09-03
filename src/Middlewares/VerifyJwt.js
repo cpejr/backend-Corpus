@@ -21,9 +21,8 @@ function verifyJwt(req, res, next) {
       return res.status(403).json({ message: "Jwt token é inválido" });
     }
 
-    // Lógica de login ainda não está pronta
-    //req.userId = user._id;
-    //req.userType = user.type;
+    req.userId = user._id;
+    req.userType = user.type;
 
     next();
   });

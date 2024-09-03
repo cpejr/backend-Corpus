@@ -1,12 +1,6 @@
 import mongoose from "mongoose";
 
 async function startDB(){
-    console.log("mongodb+srv://" + 
-        `${encodeURI(process.env.MONGO_USER)}:` + 
-        `${encodeURI(process.env.MONGO_PASS)}@` + 
-        `${encodeURI(process.env.MONGO_SERVER)}/` + 
-        `${encodeURI(process.env.MONGO_DATABASE)}?`+
-        `${encodeURI(process.env.MONGO_OPTIONS)}`);
     const mongoUri = 
         "mongodb+srv://" + 
         `${encodeURI(process.env.MONGO_USER)}:` + 
