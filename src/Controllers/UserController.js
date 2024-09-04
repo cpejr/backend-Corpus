@@ -36,7 +36,8 @@ class UserController {
   async Update(req, res) {
     try {
       const { id } = req.params;
-      const usuario = await UserModel.findByIdAndUpdate(id, req.body, { new: true });
+      
+      await UserModel.findByIdAndUpdate(id, req.body, { new: true });
 
       return res.status(200).json(eventos);
     } catch (error) {
