@@ -5,7 +5,8 @@ import verifyJWT from "../Middlewares/VerifyJwt.js";
 
 const VideoRoutes = express.Router();
 
-VideoRoutes.post("/", verifyJWT, VideoValidator.insert, VideoController.InsertVideo);
+// VideoRoutes.post("/", verifyJWT, VideoValidator.insert, VideoController.InsertVideo);
+VideoRoutes.post("/", VideoValidator.insert, VideoController.InsertVideo);
 
 VideoRoutes.get("/", VideoController.GetVideo);
 
