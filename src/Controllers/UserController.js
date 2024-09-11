@@ -39,7 +39,7 @@ class UserController {
       
       await UserModel.findByIdAndUpdate(id, req.body);
 
-      return res.status(200).json(eventos);
+      return res.status(200).json(id);
     } catch (error) {
       res.status(500).json({ message: "Forbidden route", error: error.message });
     }
