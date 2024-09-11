@@ -29,7 +29,7 @@ class UserController {
       const user = await UserModel.find();
       return res.status(200).json(user);
     } catch (error) {
-      next(new NotFoundError(`Route '${req.baseUrl}' not found`));
+      res.status(500).json({ message: "Not found", error: error.message });
     }
   }
 
@@ -37,11 +37,11 @@ class UserController {
     try {
       const { id } = req.params;
       
-      await UserModel.findByIdAndUpdate(id, req.body, { new: true });
+      await UserModel.findByIdAndUpdate(id, req.body);
 
       return res.status(200).json(eventos);
     } catch (error) {
-      next(new ForbiddenError(`Route '${req.baseUrl}' forbidden`));
+      res.status(500).json({ message: "Forbidden route", error: error.message });
     }
   }
 
@@ -53,7 +53,7 @@ class UserController {
 
       return res.status(200).json({ mensagem: "Usuario deletado com sucesso!" });
     } catch (error) {
-      next(new ForbiddenError(`Route '${req.baseUrl}' forbidden`));
+      res.status(500).json({ message: "Forbidden route", error: error.message });
     }
   }
 

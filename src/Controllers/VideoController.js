@@ -9,7 +9,7 @@ class VideosController {
 
       return res.status(200).json(video);
     } catch (error) {
-      next(new ForbiddenError(`Route '${req.baseUrl}' forbidden`));
+      res.status(500).json({ message: "Forbidden route", error: error.message });
     }
   }
   async GetVideo(req, res) {
@@ -17,7 +17,7 @@ class VideosController {
       const video = await VideosModel.find();
       return res.status(200).json(video);
     } catch (error) {
-      next(new NotFoundError(`Route '${req.baseUrl}' not found`));
+      res.status(500).json({ message: "Not found", error: error.message });
     }
   }
 
