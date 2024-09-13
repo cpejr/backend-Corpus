@@ -19,7 +19,6 @@ function verifyJwt(req, res, next) {
 
   jwt.verify(token, process.env.JWT_SECRET, (error, user) => {
     if (error) {
-      console.log(process.env.JWT_SECRET); 
       return res.status(403).json({ message: "Jwt token é inválido" });
     }
 
