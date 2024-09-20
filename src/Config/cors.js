@@ -1,5 +1,6 @@
 import { ForbiddenError } from "../Errors/baseErrors.js";
 
+
 const allowedOrigins = process.env.ALLOWED_ORIGINS.split(", ");
 const corsOptions = {
   origin: (origin, callback) => {

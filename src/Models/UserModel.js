@@ -22,9 +22,8 @@ const UserSchema = new Schema({
         trim: true,
     },
     type: {
-        type: Boolean,
-        required: false,
-        default: false,
+        type: String,
+        default: "external",  //admin, invited e external
     },
     birthday: {
         type: String,

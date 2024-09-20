@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
 
 function verifyJwt(req, res, next) {
+
   const authHeader = req?.headers?.authorization || req?.headers?.Authorization;
   if (!authHeader) {
     return res.status(403).json({ message: "Header de autorização não encontrado" });
@@ -16,8 +18,7 @@ function verifyJwt(req, res, next) {
   }
 
   jwt.verify(token, process.env.JWT_SECRET, (error, user) => {
-    if (error && token != process.env.JWT_SECRET) {
-      console.log(process.env.JWT_SECRET);
+    if (error) {
       return res.status(403).json({ message: "Jwt token é inválido" });
     }
 
@@ -25,7 +26,8 @@ function verifyJwt(req, res, next) {
     req.userType = user.type;
 
     next();
-  });
+});
+
 }
 
 export default verifyJwt;

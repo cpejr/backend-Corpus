@@ -9,7 +9,7 @@ const create = validateRequest({
     	password: z.string({ required_error: "A senha é obrigatória" }).min(4, 'Senha do usuário precisa ter pelo menos 4 caracteres!').max(16, "Senha do usuário não pode ultrapassar 16 caracteres"),
         birthday: z.string({ required_error: "A data de nascimento é obrigatória" }),
         phone: z.string({ required_error: "O telefone é obrigatório" }).min(13, "Coloque um número de telefone válido").max(13, "Coloque um número de telefone válido"),
-    	type: z.boolean().optional(),
+    	type: z.string().optional(),
     }),
 });
 
@@ -24,7 +24,7 @@ const update = validateRequest({
     	name: z.string().optional(),
     	email: z.string().optional(),
     	password: z.string().optional(),
-    	type: z.boolean().optional(),
+    	type: z.string().optional(),
     }),
     params: z.object({
     	id: z.custom(mongoose.isValidObjectId, "O id não é válido"),
