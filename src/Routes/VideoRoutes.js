@@ -5,10 +5,10 @@ import verifyJWT from "../Middlewares/VerifyJwt.js";
 
 const VideoRoutes = express.Router();
 
-VideoRoutes.post("/", verifyJWT, VideoValidator.insert, VideoController.InsertVideo);
+VideoRoutes.post("/", verifyJWT, VideoValidator.insert, VideoController.Create);
 
 VideoRoutes.get("/", VideoController.GetVideo);
 
-VideoRoutes.delete("/:id", verifyJWT, VideoValidator.destroy, VideoController.DeleteVideo);
+VideoRoutes.delete("/:id", verifyJWT, VideoValidator.destroy, VideoController.Destroy);
 
 export default VideoRoutes;
