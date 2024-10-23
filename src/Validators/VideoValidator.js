@@ -10,7 +10,6 @@ const create = validateRequest({
             .min(2, { message: "Description must be at least 2 characters long" })
             .max(750, { message: "Description cannot exceed 750 characters" }),
         video: z.string({ required_error: "O video é obrigatório" }),
-        thumbnail: z.string({ required_error: "A thumbnail é obrigatória" }),
         code: z.string({ required_error: "O código é obrigatório" }),
         context: z.
             string({ required_error: "O contexto é obrigatória" })
@@ -22,7 +21,6 @@ const create = validateRequest({
         language: z.string({ required_error: "O idioma falado é obrigatório" }),
         duration: z.number({ required_error: "A duração é obrigatória" }),
         date: z.string({ required_error: "A data é obrigatória" }),
-        transcription: z.string({ required_error: "A transcrição é obrigatória" }),
     }),
 });
 
@@ -41,7 +39,7 @@ const destroy = validateRequest({
 });
 
 export default {
-    insert,
+    create,
     get,
     destroy,
 };
