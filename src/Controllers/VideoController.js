@@ -1,8 +1,10 @@
 import VideosModel from "../Models/VideosModel.js";
-import ffmpeg from "fluent-ffmpeg";
-import streamifier from "streamifier";
-import { PassThrough } from "stream";
-//import { openai } from "../Config/OpenAI.js";
+import ffmpeg from 'fluent-ffmpeg';
+import streamifier from 'streamifier';
+import { PassThrough } from 'stream';
+import { openai } from "../Config/OpenAI.js";
+import { generateThumb } from "../Utils/general/generateThumb.js";
+import { generateTranscription } from "../Utils/general/generateTranscription.js";
 
 class VideosController {
   async Create(req, res) {
@@ -22,40 +24,16 @@ class VideosController {
         return res.status(409).json({ message: "Arquivo de vídeo não fornecido!" });
       }
 
-      const thumbnailStream = new PassThrough();
-
-      ffmpeg(videoStream)
-        .screenshots({
-          timestamps: [5],
-        })
-        .pipe(thumbnailStream, { end: true }); //.on('error', (err) => {return res.status....})
-
-      const chunks = [];
-      for await (const chunk of thumbnailStream) {
-        chunks.push(chunk);
-      }
-      const buffer = Buffer.concat(chunks);
-
-      const thumbnailFile = buffer.toString("base64");
+      const thumbnailFile = await generateThumb(videoStream);
 
       if (!thumbnailFile) {
-        return res.status(409).json({ message: "Erro ao gerar a thumbnail!" });
+        return res.status(500).json({ message: "Erro ao gerar a thumbnail!" });
       }
 
-      const audioStream = new PassThrough();
+      const transciption = await generateTranscription(videoStream, language);
 
-      ffmpeg(videoStream).noVideo().format("wav").pipe(audioStream, { end: true }); //.on('error', (err) => {return res.status....})
-
-      // const transcription = await openai.audio.transcriptions.create({
-      //   file: audioStream,
-      //   model: 'whisper-1',
-      //   language: language, // Idioma principal do vídeo. Fornecer esse tipo de informação é opcional, entretanto auxilia a IA e traz maior eficiência
-      //   response_format: 'text',
-      //   temperature: 0, // nível de acertividade (valores mais altos possibilitam possíveis erros)
-      // })
-
-      if (!transcription) {
-        return res.status(409).json({ message: "Erro ao gerar a transcrição!" });
+      if (!transciption) {
+        return res.status(500).json({ message: "Erro ao gerar a transcrição!" });
       }
 
       const newVideo = { ...req.body, thumbnail: thumbnailFile, transcription: transcription };
