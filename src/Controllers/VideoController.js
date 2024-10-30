@@ -1,7 +1,7 @@
 import VideosModel from "../Models/VideosModel.js";
-import ffmpeg from 'fluent-ffmpeg';
-import streamifier from 'streamifier';
-import { PassThrough } from 'stream';
+import ffmpeg from "fluent-ffmpeg";
+import streamifier from "streamifier";
+import { PassThrough } from "stream";
 import { openai } from "../Config/OpenAI.js";
 import { generateThumb } from "../Utils/general/generateThumb.js";
 import { generateTranscription } from "../Utils/general/generateTranscription.js";
