@@ -13,16 +13,10 @@ const VideosSchema = new Schema({
         required: true,
         trim: true,
     },
-    video: {
-        type: String,
+    archives: {
+        type: Schema.Types.ObjectId,
+        ref: "archives",
         required: true,
-        enum: ['video/x-flv', 'video/mp4', 'video/MP2T', 'video/3gpp', 'video/quicktime', 'video/x-msvideo', 'video/x-ms-wmv',],
-        unique: true,
-    },
-    thumbail: {
-        type: String,
-        required: true,
-        enum: ['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp', 'image/svg+xml'],
     },
     code: {
         type: String,
