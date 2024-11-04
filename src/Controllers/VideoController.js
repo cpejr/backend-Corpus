@@ -3,12 +3,13 @@ import { generateThumb } from "../Utils/general/generateThumb.js";
 import { generateTranscription } from "../Utils/general/generateTranscription.js";
 import fs from "fs";
 import path from "path";
+import ArchivesController from "./ArchivesController.js";
 
 class VideosController {
   async Create(req, res) {
     try {
       // objeto que chega { title, description, videoFile, code, context, responsible, totalParticipants, country, language, duration, date } - falta tirar videoFile e gerar thumbnail e transcription
-      const { language, videoFile, code } = req.body;
+      const { title, language, videoFile, code } = req.body;
 
       // const foundCode = await VideosModel.findOne({ code });
       // if (foundCode) {
@@ -56,6 +57,11 @@ class VideosController {
       }
 
       // Criação do Archives
+      const archivesID = await ArchivesController.createArchives({
+        thumbFile: thumbFile, 
+        videoFile: videoFileData,
+        name: `${title}-${code}`,
+      });
 
       const transcription = await generateTranscription(videoPath, language);
 
@@ -63,11 +69,15 @@ class VideosController {
         return res.status(500).json({ message: "Erro ao gerar a transcrição!" });
       }
 
-      const newVideo = { ...req.body, thumbnail: thumbFile, transcription: transcription.data.text };
+      await fs.promises.unlink(videoPath);
+
+      let newVideo = req.body;
+
+      delete newVideo.videoFile;
+
+      newVideo = { ...newVideo, archives: archivesID, transcription: transcription?.data?.text };
 
       //const video = await VideosModel.create(newVideo);
-
-      await fs.promises.unlink(videoPath);
 
       return res.status(200).json(newVideo);
     } catch (error) {
@@ -98,6 +108,9 @@ class VideosController {
   async Destroy(req, res) {
     try {
       const { id } = req.params;
+
+      const video = await VideosModel.findById(id);
+      await ArchivesController.deleteArchives(video.archives?._id);
 
       await VideosModel.findByIdAndDelete(id);
 
