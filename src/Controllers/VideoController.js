@@ -1,10 +1,8 @@
 import VideosModel from "../Models/VideosModel.js";
-import ffmpeg from 'fluent-ffmpeg';
-import streamifier from 'streamifier';
-import { PassThrough } from 'stream';
-import { openai } from "../Config/OpenAI.js";
 import { generateThumb } from "../Utils/general/generateThumb.js";
 import { generateTranscription } from "../Utils/general/generateTranscription.js";
+import fs from "fs";
+import path from "path";
 
 class VideosController {
   async Create(req, res) {
@@ -12,35 +10,66 @@ class VideosController {
       // objeto que chega { title, description, videoFile, code, context, responsible, totalParticipants, country, language, duration, date } - falta tirar videoFile e gerar thumbnail e transcription
       const { language, videoFile, code } = req.body;
 
-      const foundCode = await VideosModel.findOne({ code });
-      if (foundCode) {
-        return res.status(409).json({ message: "Código já cadastrado!" });
-      }
-
-      // Verificar se o arquivo foi enviado
-      const videoStream = streamifier.createReadStream(Buffer.from(videoFile, "base64"));
+      // const foundCode = await VideosModel.findOne({ code });
+      // if (foundCode) {
+      //   return res.status(409).json({ message: "Código já cadastrado!" });
+      // }
 
       if (!videoFile) {
-        return res.status(409).json({ message: "Arquivo de vídeo não fornecido!" });
+        return res.status(400).json({ message: "Arquivo de vídeo não fornecido!" });
       }
 
-      const thumbnailFile = await generateThumb(videoStream);
+      const regex = /^data:(video\/)(\w+)(;base64,)(.+)$/;
+      const matches = videoFile.match(regex);
 
-      if (!thumbnailFile) {
+      let dataType;
+      let videoFileData;
+      
+      if (matches) {
+        dataType = matches[2];
+        videoFileData = matches[4];
+      } else {
+        return res.status(409).json({ message: 'A string Base64 não está no formato esperado.'});
+      }
+
+      const videoBuffer = Buffer.from(videoFileData, 'base64');
+
+      if (videoBuffer.length === 0) {
+        return res.status(400).json({ message: "Arquivo de vídeo vazio/inválido!" });
+      }
+
+      const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
+
+      const videoStream = fs.createWriteStream(videoPath);
+
+      videoStream.write(videoBuffer);
+      videoStream.end();
+
+      videoStream.on('error', (err) => {
+        return res.status(500).json({ message: "'Erro ao salvar o arquivo:'", error: err });
+      });
+
+      const thumbFile = await generateThumb(videoPath);
+
+      if (!thumbFile) {
         return res.status(500).json({ message: "Erro ao gerar a thumbnail!" });
       }
 
-      const transciption = await generateTranscription(videoStream, language);
+      // Criação do Archives
 
-      if (!transciption) {
+      const transcription = await generateTranscription(videoPath, language);
+
+      if (!transcription) {
         return res.status(500).json({ message: "Erro ao gerar a transcrição!" });
       }
 
-      const newVideo = { ...req.body, thumbnail: thumbnailFile, transcription: transcription };
+      const newVideo = { ...req.body, thumbnail: thumbFile, transcription: transcription.data.text };
 
-      const video = await VideosModel.create(newVideo);
+      //const video = await VideosModel.create(newVideo);
 
-      return res.status(200).json(video);
+      await fs.promises.unlink(videoPath);
+
+      return res.status(200).json(newVideo);
     } catch (error) {
       res.status(500).json({ message: "Erro no servidor", error: error.message });
     }
@@ -55,6 +84,7 @@ class VideosController {
       res.status(500).json({ message: "Not found", error: error.message });
     }
   }
+
   async UpdateVideo(req, res) {
     try {
       const { id } = req.params;
