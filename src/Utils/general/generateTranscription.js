@@ -14,10 +14,9 @@ export async function generateTranscription(videoPath, language) {
             temperature: 0,  
         })
 
-        return transciption;
-
-    } catch (error) {
-        console.log(error);
-        return null;
-    }
+    return transciption;
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
 }
