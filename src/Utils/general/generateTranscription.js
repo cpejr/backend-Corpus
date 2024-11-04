@@ -1,15 +1,13 @@
 import ffmpeg from 'fluent-ffmpeg';
-import { PassThrough } from 'stream';
-import { openai } from "../Config/OpenAI.js";
+import ffmpegStatic from 'ffmpeg-static';
+import { openai } from '../../Config/OpenAI.js';
+import fs from 'fs';
 
-export async function generateTranscription(videoStream, language) {
+export async function generateTranscription(videoPath, language) {
     try {
-        const audioStream = new PassThrough();
-
-        ffmpeg(videoStream).noVideo().format('wav').pipe(audioStream, { end: true });
 
         const transciption = await openai.audio.transcriptions.create({
-            file: audioStream,
+            file: fs.createReadStream(videoPath),
             model: 'whisper-1',
             language: language, 
             response_format: 'text',
