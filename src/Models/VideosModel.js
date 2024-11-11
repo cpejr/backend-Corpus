@@ -9,7 +9,7 @@ const VideosSchema = new Schema(
       required: true,
       trim: true,
     },
-    shortDescription: {
+    ShortDescription: {
       type: String,
       required: true,
       trim: true,
@@ -27,13 +27,13 @@ const VideosSchema = new Schema(
         "video/x-msvideo",
         "video/x-ms-wmv",
       ],
-      unique: true,
+      unique: false,
     },
-    thumbail: {
-      type: String,
-      required: true,
-      enum: ["image/jpeg", "image/png", "image/gif", "image/bmp", "image/webp", "image/svg+xml"],
-    },
+    // thumbail: {
+    //   type: String,
+    //   required: true,
+    //   enum: ["image/jpeg", "image/png", "image/gif", "image/bmp", "image/webp", "image/svg+xml"],
+    // },
     code: {
       type: String,
       required: true,
@@ -50,34 +50,34 @@ const VideosSchema = new Schema(
       required: true,
       trim: true,
     },
-    totalParticipants: {
-      type: Number,
-      required: true,
-      trim: true,
-    },
-    country: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    language: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    duration: {
-      type: Number,
-      min: [0, "Video duration cannot be less than 0 seconds"],
-    },
-    date: {
-      type: String,
-      required: true,
-    },
-    transcription: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    // totalParticipants: {
+    //   type: Number,
+    //   required: true,
+    //   trim: true,
+    // },
+    // country: {
+    //   type: String,
+    //   required: true,
+    //   trim: true,
+    // },
+    // language: {
+    //   type: String,
+    //   required: true,
+    //   trim: true,
+    // },
+    // duration: {
+    //   type: Number,
+    //   min: [0, "Video duration cannot be less than 0 seconds"],
+    // },
+    // date: {
+    //   type: String,
+    //   required: true,
+    // },
+    // transcription: {
+    //   type: String,
+    //   required: true,
+    //   trim: true,
+    // },
   },
   {
     timestamps: true,

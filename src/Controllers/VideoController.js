@@ -1,7 +1,7 @@
 import VideosModel from "../Models/VideosModel.js";
-import ffmpeg from 'fluent-ffmpeg';
-import streamifier from 'streamifier';
-import { PassThrough } from 'stream';
+import ffmpeg from "fluent-ffmpeg";
+import streamifier from "streamifier";
+import { PassThrough } from "stream";
 import { openai } from "../Config/OpenAI.js";
 import { generateThumb } from "../Utils/general/generateThumb.js";
 import { generateTranscription } from "../Utils/general/generateTranscription.js";
@@ -18,25 +18,28 @@ class VideosController {
       }
 
       // Verificar se o arquivo foi enviado
-      const videoStream = streamifier.createReadStream(Buffer.from(videoFile, "base64"));
+      //const videoStream = streamifier.createReadStream(Buffer.from(videoFile, "base64"));
 
-      if (!videoFile) {
-        return res.status(409).json({ message: "Arquivo de vídeo não fornecido!" });
-      }
+      // if (!videoFile) {
+      //   return res.status(409).json({ message: "Arquivo de vídeo não fornecido!" });
+      // }
 
-      const thumbnailFile = await generateThumb(videoStream);
+      //const thumbnailFile = await generateThumb(videoStream);
 
-      if (!thumbnailFile) {
-        return res.status(500).json({ message: "Erro ao gerar a thumbnail!" });
-      }
+      // if (!thumbnailFile) {
+      //   return res.status(500).json({ message: "Erro ao gerar a thumbnail!" });
+      // }
 
-      const transciption = await generateTranscription(videoStream, language);
+      //const transciption = await generateTranscription(videoStream, language);
 
-      if (!transciption) {
-        return res.status(500).json({ message: "Erro ao gerar a transcrição!" });
-      }
+      // if (!transciption) {
+      //   return res.status(500).json({ message: "Erro ao gerar a transcrição!" });
+      // }
 
-      const newVideo = { ...req.body, thumbnail: thumbnailFile, transcription: transcription };
+      const newVideo = {
+        ...req.body,
+        // thumbnail: thumbnailFile, transcription: transcription
+      };
 
       const video = await VideosModel.create(newVideo);
 
@@ -48,8 +51,7 @@ class VideosController {
 
   async GetVideo(req, res) {
     try {
-      const { id } = req.params;
-      const video = await VideosModel.findById(id);
+      const video = await VideosModel.find();
       return res.status(200).json(video);
     } catch (error) {
       res.status(500).json({ message: "Not found", error: error.message });
