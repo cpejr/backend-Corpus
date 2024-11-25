@@ -16,7 +16,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.689.0",
     "@ffmpeg/ffmpeg": "^0.12.10",
+    "aws": "^0.0.3-2",
     "bcrypt": "^5.1.1",
     "code-tag": "^1.2.0",
     "cookie-parser": "^1.4.6",

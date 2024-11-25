@@ -1,6 +1,5 @@
-import mongoose from "mongoose";
-import ArchivesModel from "../Models/ArchivesModel";
-import { deleteArchive, getArchive, sendArchive } from "../Config/Aws";
+import ArchivesModel from "../Models/ArchivesModel.js";
+import { deleteArchive, getArchive, sendArchive } from "../Config/Aws.js";
 
 class ArchiveController {
     async createArchives(req, res){
