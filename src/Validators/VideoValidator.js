@@ -5,6 +5,7 @@ import { validateRequest } from "zod-express-middleware";
 const create = validateRequest({
   body: z.object({
     title: z.string({ required_error: "O titulo é obrigatório" }),
+    thumbnail: z.string({ required_error: "A thumbnail é obrigatório" }),
     ShortDescription: z.string({ required_error: "A descrição é obrigatória" }),
     //videoFile: z.string({ required_error: "O video é obrigatório" }),
     code: z.string({ required_error: "O código é obrigatório" }),

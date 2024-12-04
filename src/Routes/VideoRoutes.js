@@ -7,12 +7,12 @@ const VideoRoutes = express.Router();
 
 VideoRoutes.post(
   "/", //verifyJWT,
-  VideoValidator.create,
+  //VideoValidator.create,
   VideoController.Create
 );
 
 VideoRoutes.get("/", VideoController.GetVideo);
-
+VideoRoutes.put("/:id", VideoController.UpdateVideo);
 VideoRoutes.delete("/:id", verifyJWT, VideoValidator.destroy, VideoController.Destroy);
 
 export default VideoRoutes;
