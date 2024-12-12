@@ -57,6 +57,14 @@ class VideosController {
       res.status(500).json({ message: "Not found", error: error.message });
     }
   }
+  async GetVideoByParameters(req, res) {
+    try {
+      const video = await VideosModel.find(req.body);
+      return res.status(200).json(video);
+    } catch (error) {
+      res.status(500).json({ message: "Not found", error: error.message });
+    }
+  }
   async UpdateVideo(req, res) {
     try {
       const { id } = req.params;
