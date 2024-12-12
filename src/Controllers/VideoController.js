@@ -9,6 +9,7 @@ class VideosController {
   async Create(req, res) {
     try {
       // objeto que chega { title, description, videoFile, code, context, responsible, totalParticipants, country, language, duration, date } - falta tirar videoFile e gerar thumbnail e transcription
+      console.log(req.body)
       const { title, language, videoFile, code } = req.body;
 
       // const foundCode = await VideosModel.findOne({ code });
@@ -108,7 +109,7 @@ class VideosController {
   async Destroy(req, res) {
     try {
       const { id } = req.params;
-
+      console.log(id)
       const video = await VideosModel.findById(id);
       await ArchivesController.deleteArchives(video.archives?._id);
 

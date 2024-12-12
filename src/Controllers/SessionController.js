@@ -13,7 +13,6 @@ class SessionController {
   async Login(req, res) {
     try {
       const { email, password, token } = req.body;
-      console.log("oi");
       const foundUser = await UserModel.findOne({ email }).select("+password");
 
       if (!foundUser) {
