@@ -50,6 +50,11 @@ const VideosSchema = new Schema(
       required: true,
       trim: true,
     },
+    time: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     // totalParticipants: {
     //   type: Number,
     //   required: true,
