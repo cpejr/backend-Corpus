@@ -59,8 +59,12 @@ class VideosController {
   }
   async GetVideoByParameters(req, res) {
     try {
-      const filters = req.query; // Pegando os filtros da query string
+      console.log(req);
+      const { totalParticipants, country, language, duration, date } = req.params;
+      const filters = {};
+
       const videos = await VideosModel.find(filters);
+
       return res.status(200).json(videos);
     } catch (error) {
       res.status(500).json({ message: "Not found", error: error.message });
