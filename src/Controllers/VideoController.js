@@ -57,14 +57,31 @@ class VideosController {
       res.status(500).json({ message: "Not found", error: error.message });
     }
   }
+
   async GetVideoByParameters(req, res) {
     try {
-      console.log(req);
-      const { totalParticipants, country, language, duration, date } = req.params;
-      const filters = {};
+      console.log(req.query.filters);
 
-      const videos = await VideosModel.find(filters);
+      const { InteractionTime, TotalParticipants, dates, duration } = req.query.filters;
 
+      if (InteractionTime) {
+        filter.InteractionTime = { $gte: Number(InteractionTime) };
+      }
+      if (TotalParticipants) {
+        filter.TotalParticipants = { $gte: Number(TotalParticipants) };
+      }
+      if (dates) {
+        const [startDate, endDate] = dates.split(",");
+        filter.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      }
+      if (duration) {
+        filter.duration = { $gte: Number(duration) };
+      }
+
+      console.log(TotalParticipants);
+      const videos = await VideosModel.find(req.query.filters);
+      console.log(videos);
+      console.log(filter);
       return res.status(200).json(videos);
     } catch (error) {
       res.status(500).json({ message: "Not found", error: error.message });
