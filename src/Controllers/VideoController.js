@@ -60,30 +60,39 @@ class VideosController {
 
   async GetVideoByParameters(req, res) {
     try {
-      console.log(req.query.filters);
+      let videos = await VideosModel.find();
+      console.log(req.query.filters); //Undefined until filter is sent
+      console.log("oi");
+      if (req.query.filters) {
+        const { InteractionTime, TotalParticipants, dates, duration } = req.query.filters;
+        let filter = {};
+        console.log("oi2");
 
-      const { InteractionTime, TotalParticipants, dates, duration } = req.query.filters;
+        if (InteractionTime) {
+          filter.InteractionTime = { $lte: Number(duration) };
+        }
+        if (TotalParticipants) {
+          filter.TotalParticipants = {
+            $gte: Number(TotalParticipants.min),
+            $lte: Number(TotalParticipants.max),
+          };
+        }
+        if (dates) {
+          filter.date = { $lte: new Date(dates) };
+        }
+        if (duration) {
+          filter.duration = { $lte: Number(duration) };
+        }
+        console.log("oi3");
+        console.log(filter);
+        videos = await VideosModel.find(filter);
+        console.log(videos);
+        console.log(filter);
+      }
 
-      if (InteractionTime) {
-        filter.InteractionTime = { $gte: Number(InteractionTime) };
-      }
-      if (TotalParticipants) {
-        filter.TotalParticipants = { $gte: Number(TotalParticipants) };
-      }
-      if (dates) {
-        const [startDate, endDate] = dates.split(",");
-        filter.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
-      }
-      if (duration) {
-        filter.duration = { $gte: Number(duration) };
-      }
-
-      console.log(TotalParticipants);
-      const videos = await VideosModel.find(req.query.filters);
-      console.log(videos);
-      console.log(filter);
       return res.status(200).json(videos);
     } catch (error) {
+      console.log(error);
       res.status(500).json({ message: "Not found", error: error.message });
     }
   }
