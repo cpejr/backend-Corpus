@@ -78,7 +78,7 @@ class VideosController {
           };
         }
         if (dates) {
-          filter.date = { $lte: new Date(dates) };
+          filter.date = { $lte: new Date(dates) }; // Lógica de menor ou igual(invertida)
         }
         if (duration) {
           filter.duration = { $lte: Number(duration) };
