@@ -64,29 +64,36 @@ class VideosController {
       console.log(req.query.filters); //Undefined until filter is sent
       console.log("oi");
       if (req.query.filters) {
-        const { InteractionTime, TotalParticipants, dates, duration } = req.query.filters;
+        const { totalParticipants, dates, duration, country, language } = req.query.filters;
         let filter = {};
         console.log("oi2");
 
-        if (InteractionTime) {
-          filter.InteractionTime = { $lte: Number(duration) };
+        if (totalParticipants) {
+          if (totalParticipants.min == 10) {
+            filter.totalParticipants = { $gte: Number(11) };
+          } else {
+            filter.totalParticipants = {
+              $gte: Number(totalParticipants.min),
+              $lte: Number(totalParticipants.max),
+            };
+          }
         }
-        if (TotalParticipants) {
-          filter.TotalParticipants = {
-            $gte: Number(TotalParticipants.min),
-            $lte: Number(TotalParticipants.max),
-          };
+        if (country) {
+          filter.country = country;
+        }
+        if (language) {
+          filter.language = language;
         }
         if (dates) {
           filter.date = { $lte: new Date(dates) }; // Lógica de menor ou igual(invertida)
         }
         if (duration) {
-          filter.duration = { $lte: Number(duration) };
+          filter.duration = { $gte: Number(duration) }; // Lógica de buscar por duração maior ou igual
         }
         console.log("oi3");
         console.log(filter);
         videos = await VideosModel.find(filter);
-        console.log(videos);
+
         console.log(filter);
       }
 
