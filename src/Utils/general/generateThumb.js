@@ -1,23 +1,36 @@
 import ffmpeg from 'fluent-ffmpeg';
-import { PassThrough } from 'stream';
+import ffmpegStatic from 'ffmpeg-static';
+import fs from 'fs/promises';
+import path from "path";
 
-export async function generateThumb(videoStream) {
+export async function generateThumb(inputPath) {
     try {
-        const thumbnailStream = new PassThrough();
+        ffmpeg.setFfmpegPath(ffmpegStatic);
 
-        ffmpeg(videoStream).screenshots({ timestamps: [5], }).pipe(thumbnailStream, { end: true });
+        const filePath = path.join("./src/Utils/database", 'thumb.jpg');
 
-        const chunks = [];
-        for await (const chunk of thumbnailStream) {
-            chunks.push(chunk);
-        }
+        await new Promise((resolve, reject) => {
+            ffmpeg(inputPath)
+                .takeScreenshots({
+                    count: 1,
+                    timemarks: ["2"],
+                    filename: path.basename(filePath),
+                    folder: path.dirname(filePath),
+                })
+                .on('end', resolve)
+                .on('error', (error) => {
+                    console.error('Erro ao gerar a thumbnail:', error);
+                    reject(error);
+                });
+        });
 
-        const buffer = Buffer.concat(chunks);
+        const thumbnailData = await fs.readFile(filePath);
+        const thumbnailBase64 = thumbnailData.toString('base64');
 
-        const thumbnailFile = buffer.toString('base64');
+        await fs.unlink(filePath);
 
-        return thumbnailFile;
-
+        return thumbnailBase64;
+''
     } catch (error) {
         console.log(error);
         return null;

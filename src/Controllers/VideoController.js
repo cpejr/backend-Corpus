@@ -1,49 +1,86 @@
 import VideosModel from "../Models/VideosModel.js";
-import ffmpeg from "fluent-ffmpeg";
-import streamifier from "streamifier";
-import { PassThrough } from "stream";
-import { openai } from "../Config/OpenAI.js";
 import { generateThumb } from "../Utils/general/generateThumb.js";
 import { generateTranscription } from "../Utils/general/generateTranscription.js";
+import fs from "fs";
+import path from "path";
+import ArchivesController from "./ArchivesController.js";
 
 class VideosController {
   async Create(req, res) {
     try {
       // objeto que chega { title, description, videoFile, code, context, responsible, totalParticipants, country, language, duration, date } - falta tirar videoFile e gerar thumbnail e transcription
-      const { language, videoFile, code } = req.body;
+      console.log(req.body)
+      const { title, language, videoFile, code } = req.body;
 
-      const foundCode = await VideosModel.findOne({ code });
-      if (foundCode) {
-        return res.status(409).json({ message: "Código já cadastrado!" });
+      // const foundCode = await VideosModel.findOne({ code });
+      // if (foundCode) {
+      //   return res.status(409).json({ message: "Código já cadastrado!" });
+      // }
+
+      if (!videoFile) {
+        return res.status(400).json({ message: "Arquivo de vídeo não fornecido!" });
       }
 
-      // Verificar se o arquivo foi enviado
-      //const videoStream = streamifier.createReadStream(Buffer.from(videoFile, "base64"));
+      const regex = /^data:(video\/)(\w+)(;base64,)(.+)$/;
+      const matches = videoFile.match(regex);
 
-      // if (!videoFile) {
-      //   return res.status(409).json({ message: "Arquivo de vídeo não fornecido!" });
-      // }
+      let dataType;
+      let videoFileData;
+      
+      if (matches) {
+        dataType = matches[2];
+        videoFileData = matches[4];
+      } else {
+        return res.status(409).json({ message: 'A string Base64 não está no formato esperado.'});
+      }
 
-      //const thumbnailFile = await generateThumb(videoStream);
+      const videoBuffer = Buffer.from(videoFileData, 'base64');
 
-      // if (!thumbnailFile) {
-      //   return res.status(500).json({ message: "Erro ao gerar a thumbnail!" });
-      // }
+      if (videoBuffer.length === 0) {
+        return res.status(400).json({ message: "Arquivo de vídeo vazio/inválido!" });
+      }
 
-      //const transciption = await generateTranscription(videoStream, language);
+      const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
 
-      // if (!transciption) {
-      //   return res.status(500).json({ message: "Erro ao gerar a transcrição!" });
-      // }
+      const videoStream = fs.createWriteStream(videoPath);
 
-      const newVideo = {
-        ...req.body,
-        // thumbnail: thumbnailFile, transcription: transcription
-      };
+      videoStream.write(videoBuffer);
+      videoStream.end();
 
-      const video = await VideosModel.create(newVideo);
+      videoStream.on('error', (err) => {
+        return res.status(500).json({ message: "'Erro ao salvar o arquivo:'", error: err });
+      });
 
-      return res.status(200).json(video);
+      const thumbFile = await generateThumb(videoPath);
+
+      if (!thumbFile) {
+        return res.status(500).json({ message: "Erro ao gerar a thumbnail!" });
+      }
+
+      // Criação do Archives
+      const archivesID = await ArchivesController.createArchives({
+        thumbFile: thumbFile, 
+        videoFile: videoFileData,
+        name: `${title}-${code}`,
+      });
+
+      const transcription = await generateTranscription(videoPath, language);
+
+      if (!transcription) {
+        return res.status(500).json({ message: "Erro ao gerar a transcrição!" });
+      }
+
+      await fs.promises.unlink(videoPath);
+
+      let newVideo = req.body;
+
+      delete newVideo.videoFile;
+
+      newVideo = { ...newVideo, archives: archivesID, transcription: transcription?.data?.text };
+
+      //const video = await VideosModel.create(newVideo);
+
+      return res.status(200).json(newVideo);
     } catch (error) {
       res.status(500).json({ message: "Erro no servidor", error: error.message });
     }
@@ -112,6 +149,9 @@ class VideosController {
   async Destroy(req, res) {
     try {
       const { id } = req.params;
+      console.log(id)
+      const video = await VideosModel.findById(id);
+      await ArchivesController.deleteArchives(video.archives?._id);
 
       await VideosModel.findByIdAndDelete(id);
 
