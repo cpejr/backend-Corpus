@@ -61,12 +61,11 @@ class VideosController {
   async GetVideoByParameters(req, res) {
     try {
       let videos = await VideosModel.find();
-      console.log(req.query.filters); //Undefined until filter is sent
-      console.log("oi");
+      //Undefined until filter is sent
+
       if (req.query.filters) {
         const { totalParticipants, dates, duration, country, language } = req.query.filters;
         let filter = {};
-        console.log("oi2");
 
         if (totalParticipants) {
           if (totalParticipants.min == 10) {
@@ -85,16 +84,13 @@ class VideosController {
           filter.language = language;
         }
         if (dates) {
-          filter.date = { $lte: new Date(dates) }; // Lógica de menor ou igual(invertida)
+          filter.date = { $gte: new Date(dates) }; // searches for date greater than or equal
         }
         if (duration) {
-          filter.duration = { $gte: Number(duration) }; // Lógica de buscar por duração maior ou igual
+          filter.duration = { $gte: Number(duration) }; // searches for duration greater than or equal
         }
-        console.log("oi3");
-        console.log(filter);
-        videos = await VideosModel.find(filter);
 
-        console.log(filter);
+        videos = await VideosModel.find(filter);
       }
 
       return res.status(200).json(videos);
