@@ -59,11 +59,11 @@ const VideosSchema = new Schema(
       type: String,
       required: true,
     },
-    // transcription: {
-    //   type: String,
-    //   required: true,
-    //   trim: true,
-    // },
+    transcription: {
+      type: String,
+      required: true,
+      trim: true,
+    },
   },
   {
     timestamps: true,

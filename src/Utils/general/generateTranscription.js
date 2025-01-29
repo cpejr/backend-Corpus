@@ -5,7 +5,6 @@ import fs from 'fs';
 
 export async function generateTranscription(videoPath, language) {
     try {
-
         const transciption = await openai.audio.transcriptions.create({
             file: fs.createReadStream(videoPath),
             model: 'whisper-1',
@@ -13,7 +12,7 @@ export async function generateTranscription(videoPath, language) {
             response_format: 'text',
             temperature: 0,  
         })
-
+        console.log("terminou a transcricao")
     return transciption;
   } catch (error) {
     console.log(error);

@@ -4,12 +4,11 @@ import { deleteArchive, getArchive, sendArchive } from "../Config/Aws.js";
 class ArchiveController {
     async createArchives(req, res){
         try {
-            const { thumbFile, videoFile, name } = req.body;
-            const thumbName = `$T-{name}`;
 
+            const { thumbFile, videoFile, name } = req;
+            const thumbName = `$T-${name}`;
             const videoKey = await sendArchive(videoFile, name);
             const thumbKey = await sendArchive(thumbFile, thumbName);
-
             const archives = await ArchivesModel.create({ videoKey, thumbKey, name });
 
             return archives._id;
@@ -21,8 +20,8 @@ class ArchiveController {
 
     async getArchives(req, res) {
         try {
-            const id = req.body;
-
+            const {id} = req.params;
+            
             const archives = await ArchivesModel.findById(id);
 
             if (!archives) {
@@ -31,9 +30,7 @@ class ArchiveController {
 
             const videoFile = await getArchive(archives.videoKey);
             const thumbFile = await getArchive(archives.thumbKey);
-
             const data = { videoFile, thumbFile }
-
             return res.status(200).json(data);
 
         } catch (error) {

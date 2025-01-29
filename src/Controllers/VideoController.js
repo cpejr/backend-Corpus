@@ -4,18 +4,18 @@ import { generateTranscription } from "../Utils/general/generateTranscription.js
 import fs from "fs";
 import path from "path";
 import ArchivesController from "./ArchivesController.js";
+import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
 
 class VideosController {
   async Create(req, res) {
     try {
       // objeto que chega { title, description, videoFile, code, context, responsible, totalParticipants, country, language, duration, date } - falta tirar videoFile e gerar thumbnail e transcription
-      console.log(req.body)
-      const { title, language, videoFile, code } = req.body;
 
-      // const foundCode = await VideosModel.findOne({ code });
-      // if (foundCode) {
-      //   return res.status(409).json({ message: "Código já cadastrado!" });
-      // }
+      const { title, language, videoFile, code } = req.body;
+      const foundCode = await VideosModel.findOne({ code });
+      if (foundCode) {
+        return res.status(409).json({ message: "Código já cadastrado!" });
+      }
 
       if (!videoFile) {
         return res.status(400).json({ message: "Arquivo de vídeo não fornecido!" });
@@ -39,11 +39,9 @@ class VideosController {
       if (videoBuffer.length === 0) {
         return res.status(400).json({ message: "Arquivo de vídeo vazio/inválido!" });
       }
-
       const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
-
       const videoStream = fs.createWriteStream(videoPath);
-
+      
       videoStream.write(videoBuffer);
       videoStream.end();
 
@@ -57,30 +55,36 @@ class VideosController {
         return res.status(500).json({ message: "Erro ao gerar a thumbnail!" });
       }
 
-      // Criação do Archives
+      
       const archivesID = await ArchivesController.createArchives({
         thumbFile: thumbFile, 
         videoFile: videoFileData,
         name: `${title}-${code}`,
       });
+      // const transcription = await generateTranscription(videoPath, language);
 
-      const transcription = await generateTranscription(videoPath, language);
-
-      if (!transcription) {
-        return res.status(500).json({ message: "Erro ao gerar a transcrição!" });
-      }
-
+      // if (!transcription) {
+      //   return res.status(500).json({ message: "Erro ao gerar a transcrição!" });
+      // }
+      const transcription = null
       await fs.promises.unlink(videoPath);
-
       let newVideo = req.body;
 
       delete newVideo.videoFile;
 
-      newVideo = { ...newVideo, archives: archivesID, transcription: transcription?.data?.text };
+      //transcription?.data?.text
+    
+      newVideo = { ...newVideo, archives: archivesID, transcription: "jose lucas1" ,duration:convertToMinutes(req.body.duration) };
+      delete newVideo.description
+      delete newVideo.responsible
+      try{
 
-      //const video = await VideosModel.create(newVideo);
+      const video = await VideosModel.create(newVideo);
+      return res.status(200).json(video);
+    }catch(err){
+      console.log(err)
+    }
 
-      return res.status(200).json(newVideo);
     } catch (error) {
       res.status(500).json({ message: "Erro no servidor", error: error.message });
     }
@@ -149,7 +153,6 @@ class VideosController {
   async Destroy(req, res) {
     try {
       const { id } = req.params;
-      console.log(id)
       const video = await VideosModel.findById(id);
       await ArchivesController.deleteArchives(video.archives?._id);
 

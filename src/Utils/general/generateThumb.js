@@ -23,10 +23,9 @@ export async function generateThumb(inputPath) {
                     reject(error);
                 });
         });
-
+        
         const thumbnailData = await fs.readFile(filePath);
         const thumbnailBase64 = thumbnailData.toString('base64');
-
         await fs.unlink(filePath);
 
         return thumbnailBase64;

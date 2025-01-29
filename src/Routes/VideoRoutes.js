@@ -13,7 +13,7 @@ VideoRoutes.post(
 
 VideoRoutes.get("/", VideoController.GetVideo);
 VideoRoutes.put("/:id", VideoController.UpdateVideo);
-VideoRoutes.delete("/:id", verifyJWT, VideoValidator.destroy, VideoController.Destroy);
+VideoRoutes.delete("/:id", VideoController.Destroy);
 VideoRoutes.get("/:data", VideoController.GetVideoByParameters);
 
 export default VideoRoutes;

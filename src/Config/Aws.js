@@ -5,30 +5,41 @@ import {
     S3Client,
   } from "@aws-sdk/client-s3";
 import { v4 as uuidv4 } from "uuid";
+import { Buffer } from "buffer";
 
-const s3 = new S3Client({
-    region: process.env.AWS_BUCKET_REGION,
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    },
-  });
 
+
+const region = process.env.AWS_BUCKET_REGION;
+const accessKeyId = process.env.AWS_ACCESS_KEY;
+const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 const bucketName = process.env.AWS_BUCKET_NAME;
 
+const s3 = await new S3Client({
+  region: region,
+  credentials: {
+    accessKeyId: accessKeyId,
+    secretAccessKey: secretAccessKey,
+  },
+});
+
 export async function sendArchive(file, name) {
-    const key = name + uuidv4(); // retirar e enviar o name como title+code ou T+title+code
+  try {
+    const key = name + uuidv4();
+    const buffer = Buffer.from(file, "base64");
     const contentType = file.split(";base64")[0];
+
     const params = {
       Bucket: bucketName,
       Body: file,
       Key: key,
-      ContentType: contentType.substring(5),
     };
   
     await s3.send(new PutObjectCommand(params));
-  
+
     return key;
+} catch (error) {
+    console.log("Erro ao enviar para S3:");
+}
 }
 
 export async function getArchive(key) {
@@ -36,6 +47,7 @@ export async function getArchive(key) {
     Bucket: bucketName,
     Key: key,
   };
+  console.log(params)
   const res = await s3.send(new GetObjectCommand(params));
   const stream = res.Body.transformToString();
   return stream;
