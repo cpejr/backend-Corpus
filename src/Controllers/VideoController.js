@@ -154,6 +154,7 @@ class VideosController {
     try {
       const { id } = req.params;
       const video = await VideosModel.findById(id);
+      console.log(video.archives._id)
       await ArchivesController.deleteArchives(video.archives?._id);
 
       await VideosModel.findByIdAndDelete(id);

@@ -42,8 +42,8 @@ class ArchiveController {
 
     async deleteArchives(req, res) {
         try {
-            const id = req.body;
-
+            const id = req;
+            
             const archives = await ArchivesModel.findById(id);
 
             if (!archives) {

@@ -47,7 +47,7 @@ export async function getArchive(key) {
     Bucket: bucketName,
     Key: key,
   };
-  console.log(params)
+
   const res = await s3.send(new GetObjectCommand(params));
   const stream = res.Body.transformToString();
   return stream;
