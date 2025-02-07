@@ -61,15 +61,16 @@ class VideosController {
         videoFile: videoFileData,
         name: `${title}-${code}`,
       });
-      let transcription = await generateTranscription(videoPath, language);
+      // let transcription = await generateTranscription(videoPath, language);
 
-      if (!transcription) {
-        transcription = "legenda placeholder"
-      }else{
-        transcription = transcription?.data?.text
-      }
-      console.log(transcription)
+      // if (!transcription) {
+      //   transcription = "legenda placeholder"
+      // }else{
+      //   transcription = transcription?.data?.text
+      // }
+      let transcription = "placegolder"
       await fs.promises.unlink(videoPath);
+      
       let newVideo = req.body;
 
       delete newVideo.videoFile;
