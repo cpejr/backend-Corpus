@@ -61,12 +61,14 @@ class VideosController {
         videoFile: videoFileData,
         name: `${title}-${code}`,
       });
-      // const transcription = await generateTranscription(videoPath, language);
+      let transcription = await generateTranscription(videoPath, language);
 
-      // if (!transcription) {
-      //   return res.status(500).json({ message: "Erro ao gerar a transcrição!" });
-      // }
-      const transcription = null
+      if (!transcription) {
+        transcription = "legenda placeholder"
+      }else{
+        transcription = transcription?.data?.text
+      }
+      console.log(transcription)
       await fs.promises.unlink(videoPath);
       let newVideo = req.body;
 
@@ -74,7 +76,7 @@ class VideosController {
 
       //transcription?.data?.text
     
-      newVideo = { ...newVideo, archives: archivesID, transcription: "jose lucas1" ,duration:convertToMinutes(req.body.duration) };
+      newVideo = { ...newVideo, archives: archivesID, transcription: transcription ,duration:convertToMinutes(req.body.duration) };
       delete newVideo.description
       delete newVideo.responsible
       try{
