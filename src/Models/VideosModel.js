@@ -15,9 +15,9 @@ const VideosSchema = new Schema(
       trim: true,
     },
     archives: {
-        type: Schema.Types.ObjectId,
-        ref: "archives",
-        required: true,
+      type: Schema.Types.ObjectId,
+      ref: "archives",
+      required: true,
     },
     code: {
       type: String,
@@ -56,12 +56,12 @@ const VideosSchema = new Schema(
       min: [0, "Video duration cannot be less than 0 seconds"],
     },
     date: {
-      type: String,
+      type: Date,
       required: true,
     },
     transcription: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
     },
   },
