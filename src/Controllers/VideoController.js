@@ -9,8 +9,6 @@ import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
 class VideosController {
   async Create(req, res) {
     try {
-      // objeto que chega { title, description, videoFile, code, context, responsible, totalParticipants, country, language, duration, date } - falta tirar videoFile e gerar thumbnail e transcription
-
       const { title, language, videoFile, code } = req.body;
       const foundCode = await VideosModel.findOne({ code });
       if (foundCode) {
@@ -39,6 +37,7 @@ class VideosController {
       if (videoBuffer.length === 0) {
         return res.status(400).json({ message: "Arquivo de vídeo vazio/inválido!" });
       }
+
       const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
       const videoStream = fs.createWriteStream(videoPath);
       
@@ -54,39 +53,36 @@ class VideosController {
       if (!thumbFile) {
         return res.status(500).json({ message: "Erro ao gerar a thumbnail!" });
       }
-
       
       const archivesID = await ArchivesController.createArchives({
         thumbFile: thumbFile, 
         videoFile: videoFileData,
         name: `${title}-${code}`,
       });
-      // let transcription = await generateTranscription(videoPath, language);
 
-      // if (!transcription) {
-      //   transcription = "legenda placeholder"
-      // }else{
-      //   transcription = transcription?.data?.text
-      // }
-      let transcription = "placegolder"
+      let transcription = await generateTranscription(videoPath, language);
+      if (!transcription) {
+        transcription = "legenda placeholder";
+      } else {
+        transcription = transcription?.data?.text;
+      }
+
       await fs.promises.unlink(videoPath);
       
       let newVideo = req.body;
-
       delete newVideo.videoFile;
+      delete newVideo.description;
+      delete newVideo.responsible;
 
-      //transcription?.data?.text
-    
-      newVideo = { ...newVideo, archives: archivesID, transcription: transcription ,duration:convertToMinutes(req.body.duration) };
-      delete newVideo.description
-      delete newVideo.responsible
-      try{
+      newVideo = { 
+        ...newVideo, 
+        archives: archivesID, 
+        transcription: transcription,
+        duration: convertToMinutes(req.body.duration) 
+      };
 
       const video = await VideosModel.create(newVideo);
       return res.status(200).json(video);
-    }catch(err){
-      console.log(err)
-    }
 
     } catch (error) {
       res.status(500).json({ message: "Erro no servidor", error: error.message });
@@ -105,8 +101,7 @@ class VideosController {
   async GetVideoByParameters(req, res) {
     try {
       let videos = await VideosModel.find();
-      //Undefined until filter is sent
-
+      
       if (req.query.filters) {
         const { totalParticipants, dates, duration, country, language } = req.query.filters;
         let filter = {};
@@ -128,10 +123,10 @@ class VideosController {
           filter.language = language;
         }
         if (dates) {
-          filter.date = { $gte: new Date(dates) }; // searches for date greater than or equal
+          filter.date = { $gte: new Date(dates) };
         }
         if (duration) {
-          filter.duration = { $gte: Number(duration) }; // searches for duration greater than or equal
+          filter.duration = { $gte: Number(duration) };
         }
 
         videos = await VideosModel.find(filter);
@@ -143,6 +138,7 @@ class VideosController {
       res.status(500).json({ message: "Not found", error: error.message });
     }
   }
+
   async UpdateVideo(req, res) {
     try {
       const { id } = req.params;
@@ -157,7 +153,7 @@ class VideosController {
     try {
       const { id } = req.params;
       const video = await VideosModel.findById(id);
-      console.log(video.archives._id)
+      console.log(video.archives._id);
       await ArchivesController.deleteArchives(video.archives?._id);
 
       await VideosModel.findByIdAndDelete(id);

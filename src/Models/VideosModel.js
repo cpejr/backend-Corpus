@@ -56,7 +56,7 @@ const VideosSchema = new Schema(
       min: [0, "Video duration cannot be less than 0 seconds"],
     },
     date: {
-      type: String,
+      type: Date,
       required: true,
     },
     transcription: {
