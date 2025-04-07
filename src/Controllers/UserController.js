@@ -26,7 +26,7 @@ class UserController {
   
   async Read(req, res) {
     try {
-      const user = await UserModel.find();
+      const user = await UserModel.find().select("-password"); // Alterado, avisar ao gustavo
       return res.status(200).json(user);
     } catch (error) {
       res.status(500).json({ message: "Not found", error: error.message });

@@ -9,7 +9,6 @@ import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
 class VideosController {
   async Create(req, res) {
     try {
-      // objeto que chega { title, description, videoFile, code, context, responsible, totalParticipants, country, language, duration, date } - falta tirar videoFile e gerar thumbnail e transcription
 
       const { title, language, videoFile, code } = req.body;
       const foundCode = await VideosModel.findOne({ code });
