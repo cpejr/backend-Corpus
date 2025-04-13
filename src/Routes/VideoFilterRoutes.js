@@ -3,6 +3,7 @@ import express from "express";
 
 const VideoFilterRoutes = express.Router();
 
-VideoFilterRoutes.get("/", VideoController.GetVideoByParameters);
+// Usar POST em vez de GET para filtros complexos
+VideoFilterRoutes.post("/", VideoController.GetVideoByParameters);  // Alterado para POST
 
 export default VideoFilterRoutes;

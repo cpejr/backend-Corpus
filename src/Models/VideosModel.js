@@ -1,4 +1,4 @@
-import mongoose, { mongo } from "mongoose";
+import mongoose from "mongoose";
 
 const Schema = mongoose.Schema;
 
@@ -15,9 +15,9 @@ const VideosSchema = new Schema(
       trim: true,
     },
     archives: {
-        type: Schema.Types.ObjectId,
-        ref: "archives",
-        required: true,
+      type: Schema.Types.ObjectId,
+      ref: "archives",
+      required: true,
     },
     code: {
       type: String,
@@ -35,28 +35,27 @@ const VideosSchema = new Schema(
       required: true,
       trim: true,
     },
-
     totalParticipants: {
       type: Number,
       required: true,
-      trim: true,
+      min: 1,
     },
     country: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "Country",
       required: true,
-      trim: true,
     },
     language: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "Language",
       required: true,
-      trim: true,
     },
     duration: {
       type: Number,
-      min: [0, "Video duration cannot be less than 0 seconds"],
+      min: [0, "A duração do vídeo não pode ser negativa"],
     },
     date: {
-      type: String,
+      type: Date,
       required: true,
     },
     transcription: {

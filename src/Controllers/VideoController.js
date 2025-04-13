@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import VideosModel from "../Models/VideosModel.js";
 import { generateThumb } from "../Utils/general/generateThumb.js";
 import { generateTranscription } from "../Utils/general/generateTranscription.js";
@@ -5,15 +6,22 @@ import fs from "fs";
 import path from "path";
 import ArchivesController from "./ArchivesController.js";
 import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
+import LanguageModel from "../Models/LanguageModel.js";
+import { buildVideoFilters } from "./FilterController.js"; 
 
 class VideosController {
   async Create(req, res) {
     try {
-
       const { title, language, videoFile, code } = req.body;
+
       const foundCode = await VideosModel.findOne({ code });
       if (foundCode) {
         return res.status(409).json({ message: "Código já cadastrado!" });
+      }
+
+      const languageExists = await LanguageModel.findById(language);
+      if (!languageExists) {
+        return res.status(400).json({ message: "Linguagem não encontrada!" });
       }
 
       if (!videoFile) {
@@ -25,12 +33,12 @@ class VideosController {
 
       let dataType;
       let videoFileData;
-      
+
       if (matches) {
         dataType = matches[2];
         videoFileData = matches[4];
       } else {
-        return res.status(409).json({ message: 'A string Base64 não está no formato esperado.'});
+        return res.status(409).json({ message: 'A string Base64 não está no formato esperado.' });
       }
 
       const videoBuffer = Buffer.from(videoFileData, 'base64');
@@ -38,9 +46,10 @@ class VideosController {
       if (videoBuffer.length === 0) {
         return res.status(400).json({ message: "Arquivo de vídeo vazio/inválido!" });
       }
+
       const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
       const videoStream = fs.createWriteStream(videoPath);
-      
+
       videoStream.write(videoBuffer);
       videoStream.end();
 
@@ -54,38 +63,33 @@ class VideosController {
         return res.status(500).json({ message: "Erro ao gerar a thumbnail!" });
       }
 
-      
       const archivesID = await ArchivesController.createArchives({
-        thumbFile: thumbFile, 
+        thumbFile: thumbFile,
         videoFile: videoFileData,
         name: `${title}-${code}`,
       });
-      // let transcription = await generateTranscription(videoPath, language);
 
-      // if (!transcription) {
-      //   transcription = "legenda placeholder"
-      // }else{
-      //   transcription = transcription?.data?.text
-      // }
-      let transcription = "placegolder"
+      let transcription = "placegolder";
+
       await fs.promises.unlink(videoPath);
-      
+
       let newVideo = req.body;
 
       delete newVideo.videoFile;
 
-      //transcription?.data?.text
-    
-      newVideo = { ...newVideo, archives: archivesID, transcription: transcription ,duration:convertToMinutes(req.body.duration) };
-      delete newVideo.description
-      delete newVideo.responsible
-      try{
+      newVideo = {
+        ...newVideo,
+        archives: archivesID,
+        transcription: transcription,
+        duration: convertToMinutes(req.body.duration),
+        language: languageExists._id
+      };
+
+      delete newVideo.description;
+      delete newVideo.responsible;
 
       const video = await VideosModel.create(newVideo);
       return res.status(200).json(video);
-    }catch(err){
-      console.log(err)
-    }
 
     } catch (error) {
       res.status(500).json({ message: "Erro no servidor", error: error.message });
@@ -94,7 +98,9 @@ class VideosController {
 
   async GetVideo(req, res) {
     try {
-      const video = await VideosModel.find();
+      const video = await VideosModel.find()
+        .populate("language")
+        .populate("country");
       return res.status(200).json(video);
     } catch (error) {
       res.status(500).json({ message: "Not found", error: error.message });
@@ -103,45 +109,20 @@ class VideosController {
 
   async GetVideoByParameters(req, res) {
     try {
-      let videos = await VideosModel.find();
-      //Undefined until filter is sent
+      const filters = req.body;
+      const filterObject = await buildVideoFilters(filters); // ✅ Correção aqui
 
-      if (req.query.filters) {
-        const { totalParticipants, dates, duration, country, language } = req.query.filters;
-        let filter = {};
-
-        if (totalParticipants) {
-          if (totalParticipants.min == 10) {
-            filter.totalParticipants = { $gte: Number(11) };
-          } else {
-            filter.totalParticipants = {
-              $gte: Number(totalParticipants.min),
-              $lte: Number(totalParticipants.max),
-            };
-          }
-        }
-        if (country) {
-          filter.country = country;
-        }
-        if (language) {
-          filter.language = language;
-        }
-        if (dates) {
-          filter.date = { $gte: new Date(dates) }; // searches for date greater than or equal
-        }
-        if (duration) {
-          filter.duration = { $gte: Number(duration) }; // searches for duration greater than or equal
-        }
-
-        videos = await VideosModel.find(filter);
-      }
+      const videos = await VideosModel.find(filterObject)
+        .populate("language") 
+        .populate("country");
 
       return res.status(200).json(videos);
     } catch (error) {
       console.log(error);
-      res.status(500).json({ message: "Not found", error: error.message });
+      return res.status(500).json({ message: "Erro ao buscar vídeos", error: error.message });
     }
   }
+
   async UpdateVideo(req, res) {
     try {
       const { id } = req.params;
@@ -156,11 +137,9 @@ class VideosController {
     try {
       const { id } = req.params;
       const video = await VideosModel.findById(id);
-      console.log(video.archives._id)
+      console.log(video.archives._id);
       await ArchivesController.deleteArchives(video.archives?._id);
-
       await VideosModel.findByIdAndDelete(id);
-
       return res.status(200).json({ mensagem: "Video deletado com sucesso!" });
     } catch (error) {
       res.status(500).json({ message: "Forbidden route", error: error.message });

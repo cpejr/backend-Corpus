@@ -9,7 +9,7 @@ import { NotFoundError } from "./Errors/baseErrors.js";
 
 dotenv.config();
 const app = express();
-app.use(bodyParser.json({ limit: "1mb" }));
+app.use(bodyParser.json({ limit: "100mb" }));
 app.use(express.urlencoded({ limit: "10000mb", extended: true }));
 app.use(express.json());
 app.use(cors(corsOptions));

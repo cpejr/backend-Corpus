@@ -1,6 +1,7 @@
 import LanguageModel from "../Models/LanguageModel.js";
 
 class LanguageController {
+  // Função para criar um novo idioma
   async createLanguage(req, res) {
     try {
       const { name, code } = req.body;
@@ -22,6 +23,7 @@ class LanguageController {
     }
   }
 
+  // Função para deletar um idioma
   async deleteLanguage(req, res) {
     try {
       const { id } = req.params;
@@ -32,18 +34,45 @@ class LanguageController {
     }
   }
 
-  async getLanguageById(req, res) {
+  // Função para buscar idiomas com base nos parâmetros passados pelo body
+  async getLanguageFromBody(req, res) {
     try {
-      //const { id } = req.params;
-      const language = await LanguageModel.find();
+      const { id, name, code } = req.body; // Recebe os parâmetros pelo body
 
-      if (!language) {
-        return res.status(404).json({ message: "Lígua não encontrado" });
+      if (!id && !name && !code) {
+        return res.status(400).json({ message: "É necessário fornecer ao menos um parâmetro: id, name ou code." });
       }
 
-      return res.status(200).json(language);
+      // Cria o filtro com base no que foi passado no body
+      let filter = {};
+      if (id) filter._id = id;  // Se id foi enviado, adiciona ao filtro
+      if (name) filter.name = name;  // Se name foi enviado, adiciona ao filtro
+      if (code) filter.code = code;  // Se code foi enviado, adiciona ao filtro
+
+      const language = await LanguageModel.findOne(filter); // Busca o idioma no banco
+
+      if (!language) {
+        return res.status(404).json({ message: "Língua não encontrada" });
+      }
+
+      return res.status(200).json(language);  // Retorna o idioma encontrado
     } catch (error) {
-      res.status(500).json({ message: "Erro ao buscar Língua", error: error.message });
+      return res.status(500).json({ message: "Erro ao buscar a língua", error: error.message });
+    }
+  }
+
+  // Função para buscar todos os idiomas
+  async getAllLanguages(req, res) {
+    try {
+      const languages = await LanguageModel.find();  // Busca todos os idiomas cadastrados
+
+      if (!languages || languages.length === 0) {
+        return res.status(200).json([]);  // Se não houver idiomas, retorna um array vazio
+      }
+
+      return res.status(200).json(languages);  // Retorna todos os idiomas encontrados
+    } catch (error) {
+      return res.status(500).json({ message: "Erro ao buscar idiomas", error: error.message });
     }
   }
 }
