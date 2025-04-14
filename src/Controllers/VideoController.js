@@ -1,15 +1,10 @@
-import mongoose from "mongoose";
 import VideosModel from "../Models/VideosModel.js";
-import { generateThumb } from "../Utils/general/generateThumb.js";
-import { generateTranscription } from "../Utils/general/generateTranscription.js";
-import fs from "fs";
-import path from "path";
-import ArchivesController from "./ArchivesController.js";
-import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
-import LanguageModel from "../Models/LanguageModel.js";
-import { buildVideoFilters } from "./FilterController.js"; 
+import CountryModel from "../Models/CountryModel.js"; // Importa o modelo de país
+import LanguageModel from "../Models/LanguageModel.js"; // Importa o modelo de linguagem
+import { buildVideoFilters } from "./FilterController.js"; // Importa a função buildVideoFilters
 
 class VideosController {
+ 
   async Create(req, res) {
     try {
       const { title, language, videoFile, code } = req.body;
@@ -24,6 +19,7 @@ class VideosController {
         return res.status(400).json({ message: "Linguagem não encontrada!" });
       }
 
+      // Verificação do arquivo de vídeo
       if (!videoFile) {
         return res.status(400).json({ message: "Arquivo de vídeo não fornecido!" });
       }
@@ -81,12 +77,8 @@ class VideosController {
         ...newVideo,
         archives: archivesID,
         transcription: transcription,
-        duration: convertToMinutes(req.body.duration),
         language: languageExists._id
       };
-
-      delete newVideo.description;
-      delete newVideo.responsible;
 
       const video = await VideosModel.create(newVideo);
       return res.status(200).json(video);
@@ -96,33 +88,56 @@ class VideosController {
     }
   }
 
+  
   async GetVideo(req, res) {
     try {
       const video = await VideosModel.find()
-        .populate("language")
-        .populate("country");
-      return res.status(200).json(video);
+        .populate("language")  
+        .populate("country"); 
+
+      return res.status(200).json(video);  
     } catch (error) {
-      res.status(500).json({ message: "Not found", error: error.message });
+      return res.status(500).json({ message: "Not found", error: error.message });
     }
   }
 
+  
   async GetVideoByParameters(req, res) {
     try {
-      const filters = req.body;
-      const filterObject = await buildVideoFilters(filters); // ✅ Correção aqui
+      const filters = req.body; 
+      const filterObject = await buildVideoFilters(filters);  
+
+      
+      if (filters.country) {
+        const country = await CountryModel.findOne({ name: new RegExp(filters.country, "i") }); //procura o pais qe tenha o mesmo id do ...
+        if (country) {
+          filterObject.country = country._id;  // SE encontrar o país ele transforma em id
+        } else {
+          return res.status(404).json({ message: "País não encontrado" });
+        }
+      }
+
+      
+      if (filters.language) {
+        const language = await LanguageModel.findOne({ name: new RegExp(filters.language, "i") }); 
+        if (language) {
+          filterObject.language = language._id;  
+        } else {
+          return res.status(404).json({ message: "Idioma não encontrado" });
+        }
+      }
 
       const videos = await VideosModel.find(filterObject)
         .populate("language") 
-        .populate("country");
+        .populate("country"); 
 
-      return res.status(200).json(videos);
+      return res.status(200).json(videos); 
     } catch (error) {
-      console.log(error);
       return res.status(500).json({ message: "Erro ao buscar vídeos", error: error.message });
     }
   }
 
+  
   async UpdateVideo(req, res) {
     try {
       const { id } = req.params;
@@ -133,14 +148,14 @@ class VideosController {
     }
   }
 
+  
   async Destroy(req, res) {
     try {
       const { id } = req.params;
       const video = await VideosModel.findById(id);
-      console.log(video.archives._id);
       await ArchivesController.deleteArchives(video.archives?._id);
       await VideosModel.findByIdAndDelete(id);
-      return res.status(200).json({ mensagem: "Video deletado com sucesso!" });
+      return res.status(200).json({ mensagem: "Vídeo deletado com sucesso!" });
     } catch (error) {
       res.status(500).json({ message: "Forbidden route", error: error.message });
     }

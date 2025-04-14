@@ -1,7 +1,7 @@
 import LanguageModel from "../Models/LanguageModel.js";
 
 class LanguageController {
-  // Função para criar um novo idioma
+  
   async createLanguage(req, res) {
     try {
       const { name, code } = req.body;
@@ -23,7 +23,7 @@ class LanguageController {
     }
   }
 
-  // Função para deletar um idioma
+  
   async deleteLanguage(req, res) {
     try {
       const { id } = req.params;

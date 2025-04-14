@@ -1,7 +1,7 @@
 import CountryModel from "../Models/CountryModel.js";
 
 class CountryController {
-  // Função para criar um novo país
+  
   async createCountry(req, res) {
     try {
       const { name, code } = req.body;
@@ -16,13 +16,13 @@ class CountryController {
       }
 
       const country = await CountryModel.create({ name, code });
-      return res.status(201).json(country);  // Retorna o país recém-criado
+      return res.status(201).json(country); 
     } catch (error) {
       return res.status(500).json({ message: "Erro ao criar país", error: error.message });
     }
   }
 
-  // Função para buscar um país com base no body (por ID, nome ou código)
+  
   async getCountryFromBody(req, res) {
     try {
       const { id, name, code } = req.body;
@@ -31,7 +31,7 @@ class CountryController {
         return res.status(400).json({ message: "É necessário fornecer ao menos um parâmetro: id, name ou code." });
       }
 
-      // Cria o filtro com base no que foi passado no body
+      
       let filter = {};
       if (id) filter._id = id;
       if (name) filter.name = name;
@@ -49,22 +49,22 @@ class CountryController {
     }
   }
 
-  // Função para buscar todos os países
+  
   async getAllCountries(req, res) {
     try {
       const countries = await CountryModel.find();
 
       if (countries.length === 0) {
-        return res.status(200).json([]);  // Se não houver países, retorna um array vazio
+        return res.status(200).json([]);  
       }
 
-      return res.status(200).json(countries);  // Retorna todos os países encontrados
+      return res.status(200).json(countries);  
     } catch (error) {
       return res.status(500).json({ message: "Erro ao buscar países", error: error.message });
     }
   }
 
-  // Função para atualizar um país
+  
   async updateCountry(req, res) {
     try {
       const { id } = req.params;
@@ -76,13 +76,13 @@ class CountryController {
       }
 
       const updatedCountry = await CountryModel.findByIdAndUpdate(id, { name, code }, { new: true });
-      return res.status(200).json(updatedCountry);  // Retorna o país atualizado
+      return res.status(200).json(updatedCountry);  
     } catch (error) {
       return res.status(500).json({ message: "Erro ao atualizar país", error: error.message });
     }
   }
 
-  // Função para deletar um país
+  
   async deleteCountry(req, res) {
     try {
       const { id } = req.params;
@@ -101,4 +101,3 @@ class CountryController {
 }
 
 export default new CountryController();
-  

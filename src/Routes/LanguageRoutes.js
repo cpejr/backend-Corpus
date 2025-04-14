@@ -8,13 +8,13 @@ const LanguageRoutes = express.Router();
 // Rota para criar um novo idioma
 LanguageRoutes.post("/", /*verifyJWT, LanguageValidator.create,*/ LanguageController.createLanguage);
 
-// Rota para buscar um idioma específico com base no body (id, name ou code)
+
 LanguageRoutes.post("/find", LanguageController.getLanguageFromBody);
 
-// Rota para buscar todos os idiomas
-LanguageRoutes.get("/", LanguageController.getAllLanguages);  // Nova rota para listar todos os idiomas
 
-// Rota para deletar um idioma (verificar autorização antes)
+LanguageRoutes.get("/", LanguageController.getAllLanguages); 
+
+
 LanguageRoutes.delete("/:id", /*verifyJWT, LanguageValidator.destroy,*/ LanguageController.deleteLanguage);
 
 export default LanguageRoutes;

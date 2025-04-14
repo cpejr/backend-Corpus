@@ -9,7 +9,7 @@ export async function buildVideoFilters(filters) {
   // Filtro de totalParticipants
   if (totalParticipants) {
     if (totalParticipants.min == 10) {
-      filter.totalParticipants = { $gte: 11 };  // Considerando o valor mínimo de 11
+      filter.totalParticipants = { $gte: 11 };  
     } else {
       filter.totalParticipants = {
         $gte: Number(totalParticipants.min),
@@ -22,7 +22,7 @@ export async function buildVideoFilters(filters) {
   if (country) {
     try {
       const countryDoc = await CountryModel.findOne({
-        name: { $regex: new RegExp(country, "i") },
+        name: { $regex: new RegExp(country, "i") }, //pesquisar pela string
       });
 
       if (countryDoc) {
@@ -52,10 +52,10 @@ export async function buildVideoFilters(filters) {
     }
   }
 
-  // Filtro de datas (caso tenha um intervalo ou apenas uma data)
+  // Filtro de datas (caso tenha um intervalo ou apenas uma data) //chatgpt
   if (dates) {
-    if (Array.isArray(dates) && dates.length === 2) {
-      // Se o `dates` é um intervalo (ex: [startDate, endDate])
+    if (Array.isArray(dates) && dates.length === 2) {                            
+      // Se o `dates` é um intervalo (ex: [startDate, endDate])                  
       filter.date = { $gte: new Date(dates[0]), $lte: new Date(dates[1]) };
     } else {
       // Se é apenas uma data de início (ex: `gte`)
@@ -63,11 +63,10 @@ export async function buildVideoFilters(filters) {
     }
   }
 
-  // Filtro de duração
+  //chatgpt
   if (duration) {
-    filter.duration = { $gte: Number(duration) };  // Caso precise de um valor mínimo
+    filter.duration = { $gte: Number(duration) };  
   }
 
   return filter;
 }
-
