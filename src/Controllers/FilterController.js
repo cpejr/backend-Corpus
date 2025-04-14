@@ -2,13 +2,13 @@ import mongoose from "mongoose";
 import CountryModel from "../Models/CountryModel.js";
 import LanguageModel from "../Models/LanguageModel.js";
 
-export async function buildVideoFilters(filters) {
+export async function buildVideoFilters(filters = {}) {  // Defaulting filters to an empty object
   const { totalParticipants, dates, duration, country, language } = filters;
   const filter = {};
 
-  // Filtro de totalParticipants
+  // Verifica se totalParticipants está presente
   if (totalParticipants) {
-    if (totalParticipants.min == 10) {
+    if (totalParticipants.min === 10) {
       filter.totalParticipants = { $gte: 11 };  
     } else {
       filter.totalParticipants = {
@@ -18,24 +18,25 @@ export async function buildVideoFilters(filters) {
     }
   }
 
-  // Filtro de país
+  // Verifica se a variável 'country' foi fornecida
   if (country) {
     try {
       const countryDoc = await CountryModel.findOne({
-        name: { $regex: new RegExp(country, "i") }, //pesquisar pela string
+        name: { $regex: new RegExp(country, "i") },
       });
 
       if (countryDoc) {
         filter.country = countryDoc._id;
       } else {
-        throw new Error("País não encontrado.");
+        // Log de erro em vez de lançar uma exceção
+        console.log(`País "${country}" não encontrado, filtro ignorado.`);
       }
     } catch (error) {
-      throw new Error(`Erro ao buscar país: ${error.message}`);
+      console.error(`Erro ao buscar país "${country}": ${error.message}`);
     }
   }
 
-  // Filtro de idioma
+  // Verifica se a variável 'language' foi fornecida
   if (language) {
     try {
       const languageDoc = await LanguageModel.findOne({
@@ -45,17 +46,19 @@ export async function buildVideoFilters(filters) {
       if (languageDoc) {
         filter.language = languageDoc._id;
       } else {
-        throw new Error("Linguagem não encontrada.");
+        // Log de erro em vez de lançar uma exceção
+        console.log(`Idioma "${language}" não encontrado, filtro ignorado.`);
       }
     } catch (error) {
-      throw new Error(`Erro ao buscar linguagem: ${error.message}`);
+      console.error(`Erro ao buscar linguagem "${language}": ${error.message}`);
     }
   }
 
-  // Filtro de datas (caso tenha um intervalo ou apenas uma data) //chatgpt
+  /* 
+  // Bloco de 'dates' e 'duration' comentado, pode ser descomentado quando necessário.
   if (dates) {
-    if (Array.isArray(dates) && dates.length === 2) {                            
-      // Se o `dates` é um intervalo (ex: [startDate, endDate])                  
+    if (Array.isArray(dates) && dates.length === 2) {
+      // Se o `dates` é um intervalo (ex: [startDate, endDate])                   
       filter.date = { $gte: new Date(dates[0]), $lte: new Date(dates[1]) };
     } else {
       // Se é apenas uma data de início (ex: `gte`)
@@ -63,10 +66,13 @@ export async function buildVideoFilters(filters) {
     }
   }
 
-  //chatgpt
   if (duration) {
-    filter.duration = { $gte: Number(duration) };  
+    filter.duration = { $gte: Number(duration) };
   }
+  */
 
   return filter;
 }
+
+// Exportando no final, conforme solicitado
+export default buildVideoFilters;

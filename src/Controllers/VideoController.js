@@ -1,7 +1,7 @@
 import VideosModel from "../Models/VideosModel.js";
-import CountryModel from "../Models/CountryModel.js"; // Importa o modelo de país
-import LanguageModel from "../Models/LanguageModel.js"; // Importa o modelo de linguagem
-import { buildVideoFilters } from "./FilterController.js"; // Importa a função buildVideoFilters
+import CountryModel from "../Models/CountryModel.js"; 
+import LanguageModel from "../Models/LanguageModel.js"; 
+import { buildVideoFilters } from "./FilterController.js"; 
 
 class VideosController {
  
@@ -104,39 +104,47 @@ class VideosController {
   
   async GetVideoByParameters(req, res) {
     try {
-      const filters = req.body; 
-      const filterObject = await buildVideoFilters(filters);  
-
-      
-      if (filters.country) {
-        const country = await CountryModel.findOne({ name: new RegExp(filters.country, "i") }); //procura o pais qe tenha o mesmo id do ...
-        if (country) {
-          filterObject.country = country._id;  // SE encontrar o país ele transforma em id
-        } else {
-          return res.status(404).json({ message: "País não encontrado" });
-        }
+      const filters = req.body;
+  
+      // Garantir que os filtros estejam sendo passados corretamente
+      if (!filters) {
+        return res.status(400).json({ message: "Filtros não fornecidos." });
       }
-
-      
-      if (filters.language) {
-        const language = await LanguageModel.findOne({ name: new RegExp(filters.language, "i") }); 
-        if (language) {
-          filterObject.language = language._id;  
-        } else {
-          return res.status(404).json({ message: "Idioma não encontrado" });
-        }
+  
+      // Chamar buildVideoFilters para criar o filtro final
+      const filterObject = await buildVideoFilters(filters);
+  
+      // Se o filtro for vazio ou nulo, retorna todos os vídeos
+      if (!filterObject || Object.keys(filterObject).length === 0) {
+        const videos = await VideosModel.find()
+          .populate("language")
+          .populate("country");
+        return res.status(200).json(videos);
       }
-
+  
+      // Log para depuração
+      console.log("Filtro gerado:", filterObject);
+  
+      // Consultar vídeos no banco aplicando os filtros gerados
       const videos = await VideosModel.find(filterObject)
-        .populate("language") 
-        .populate("country"); 
-
+        .populate("language")
+        .populate("country");
+  
+      // Verificar se algum vídeo foi encontrado
+      if (!videos || videos.length === 0) {
+        return res.status(404).json({ message: "Nenhum vídeo encontrado com os filtros aplicados." });
+      }
+  
+      // Retornar os vídeos encontrados
       return res.status(200).json(videos); 
+  
     } catch (error) {
+      console.error("Erro ao buscar vídeos:", error);
       return res.status(500).json({ message: "Erro ao buscar vídeos", error: error.message });
     }
   }
-
+  
+  
   
   async UpdateVideo(req, res) {
     try {
