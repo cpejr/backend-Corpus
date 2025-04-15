@@ -1,59 +1,194 @@
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegStatic from 'ffmpeg-static';
-import { openai } from '../../Config/OpenAI.js';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { SpeechClient } from '@google-cloud/speech';
+import { Storage } from '@google-cloud/storage';
 
-export async function extractAudio(videoPath) {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+process.env.GOOGLE_APPLICATION_CREDENTIALS = path.resolve(__dirname, 'google.json');
+const client = new SpeechClient();
+const storage = new Storage();
+
+const LANGUAGE_MAP = {
+  'portugues': 'pt-BR',
+  'pt': 'pt-BR',
+  'pt-br': 'pt-BR',
+  'ingles': 'en-US',
+  'inglês': 'en-US',
+  'english': 'en-US',
+  'espanhol': 'es-ES',
+  'español': 'es-ES',
+  'frances': 'fr-FR',
+  'francés': 'fr-FR',
+  'fr': 'fr-FR',
+  'alemao': 'de-DE',
+  'alemán': 'de-DE',
+  'italiano': 'it-IT',
+  'italian': 'it-IT',
+};
+
+function normalizeLanguageCode(language) {
+  if (!language) return 'en-US';
+  
+  const normalized = language.toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, '');
+  
+  return LANGUAGE_MAP[normalized] || 'en-US';
+}
+
+
+async function extractAudio(videoPath, outputFormat = 'flac') {
+  if (!fs.existsSync(videoPath)) {
+    throw new Error(`Arquivo de vídeo não encontrado: ${videoPath}`);
+  }
+
   return new Promise((resolve, reject) => {
-      const absoluteVideoPath = path.resolve(videoPath);
-      const audioPath = absoluteVideoPath.replace(/\.[^/.]+$/, ".mp3"); 
+    const absoluteVideoPath = path.resolve(videoPath);
+    const audioPath = absoluteVideoPath.replace(/\.[^/.]+$/, `.${outputFormat}`);
 
-      ffmpeg(absoluteVideoPath)
-          .setFfmpegPath(ffmpegStatic)
-          .output(audioPath)
-          .noVideo()
-          .audioCodec('libmp3lame')
-          .audioBitrate('128k')
-          .on('end', () => {
-              resolve(audioPath);
-          })
-          .on('error', (err) => {
-              reject(err);
-          })
-          .run();
+    ffmpeg(absoluteVideoPath)
+      .setFfmpegPath(ffmpegStatic)
+      .output(audioPath)
+      .noVideo()
+      .audioCodec('flac')
+      .audioChannels(1)
+      .audioFrequency(16000)
+      .on('end', () => resolve(audioPath))
+      .on('error', reject)
+      .run();
   });
 }
-export async function generateTranscription(videoPath, language) {
-    try {
 
-        const languageMap = {
-            'português': 'pt',
-            'ingles': 'en',
-            'inglês': 'en',
-            'frances': 'fr',
-            'francês': 'fr',
-            'alemao': 'de',
-            'alemão': 'de'
-        };
-        const normalizedLanguage = language.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+async function uploadToBucket(filePath, bucketName) {
+  try {
+    const destination = path.basename(filePath);
+    await storage.bucket(bucketName).upload(filePath, {
+      destination,
+      resumable: false
+    });
+    return `gs://${bucketName}/${destination}`;
+  } catch (error) {
+    throw new Error(`Falha no upload para o bucket: ${error.message}`);
+  }
+}
 
-        const audioPath = await extractAudio(videoPath);
-        const languageCode = languageMap[normalizedLanguage] || 'en'; 
-        
-        const transcription = await openai.audio.transcriptions.create({
-            file: fs.createReadStream(audioPath),
-            model: 'whisper-1',
-            language: languageCode, 
-            response_format: 'text',
-            temperature: 0.2,  
-        });
-        await fs.promises.unlink(audioPath);
-        console.log("Transcrição concluída");
-        return transcription;
-    } catch (error) {
-        
-        console.log(error);
-        return null;
+async function saveTranscriptToFile(transcription, videoPath, languageCode) {
+  // Diretório permanente para transcrições
+  const transcriptsDir = path.join(__dirname, '../../persistent_storage/transcripts');
+  
+  if (!fs.existsSync(transcriptsDir)) {
+    fs.mkdirSync(transcriptsDir, { recursive: true });
+  }
+
+  const videoName = path.basename(videoPath, path.extname(videoPath));
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const transcriptPath = path.join(transcriptsDir, `${videoName}_${timestamp}.txt`);
+  
+  const transcriptContent = [
+    `Transcrição do vídeo: ${videoName}`,
+    `Gerada em: ${new Date().toISOString()}`,
+    `Idioma: ${languageCode}`,
+    '----------------------------------------',
+    transcription
+  ].join('\n');
+
+  await fs.promises.writeFile(transcriptPath, transcriptContent);
+  return transcriptPath;
+}
+
+export async function generateTranscription(
+  videoPath,
+  language = 'en-US'
+) {
+  let audioPath;
+  
+  try {
+    if (!videoPath || !fs.existsSync(videoPath)) {
+      throw new Error('Caminho do vídeo inválido');
     }
+    const languageCode = normalizeLanguageCode(language);
+    console.log(`Processando vídeo no idioma: ${languageCode}`);
+
+    audioPath = await extractAudio(videoPath);
+    console.log(`Áudio extraído: ${audioPath}`);
+
+    const gcsUri = await uploadToBucket(audioPath, 'api-transcription');
+    console.log(`Arquivo enviado para: ${gcsUri}`);
+
+    const config = {
+      encoding: 'FLAC',
+      sampleRateHertz: 16000,
+      languageCode: languageCode,
+      enableAutomaticPunctuation: true,
+      audioChannelCount: 1,
+      enableWordConfidence: true,
+      model: 'default'
+    };
+
+    const stats = fs.statSync(audioPath);
+    const isLongAudio = (stats.size / (16000 * 2)) > 60;
+
+    let transcription;
+    
+    if (!isLongAudio) {
+      console.log('Usando reconhecimento síncrono');
+      const [response] = await client.recognize({ 
+        audio: { uri: gcsUri }, 
+        config 
+      });
+      
+      transcription = response.results
+        .map(result => result.alternatives[0].transcript)
+        .join('\n');
+    } else {
+      console.log('Usando reconhecimento assíncrono (áudio longo)');
+      const [operation] = await client.longRunningRecognize({ 
+        audio: { uri: gcsUri }, 
+        config 
+      });
+      
+      const [response] = await operation.promise();
+      transcription = response.results
+        .map(result => result.alternatives[0].transcript)
+        .join('\n');
+    }
+
+    if (!transcription) {
+      throw new Error('Nenhum resultado de transcrição retornado');
+    }
+
+    const transcriptPath = await saveTranscriptToFile(transcription, videoPath, languageCode);
+    console.log(`Transcrição salva em: ${transcriptPath}`);
+
+    return {
+      success: true,
+      transcription: transcription,
+      transcriptPath: transcriptPath,
+      language: languageCode
+    };
+
+  } catch (error) {
+    console.error('Erro na transcrição:', error);
+    return {
+      success: false,
+      error: error.message,
+      transcription: "Erro na transcrição",
+      transcriptPath: null
+    };
+  } finally {
+    if (audioPath && fs.existsSync(audioPath)) {
+      try {
+        await fs.promises.unlink(audioPath);
+      } catch (err) {
+        console.error('Erro ao limpar áudio temporário:', err);
+      }
+    }
+  }
 }

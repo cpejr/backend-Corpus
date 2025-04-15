@@ -21,7 +21,6 @@ app.use(routes);
 app.use("*", (req, res, next) => {
   next(new NotFoundError(`Route '${req.baseUrl}' not found`));
 });
-
-//DESCOMENTAR AS PARTES DAS ROTAS QUANDO ELAS FOREM ACRESCENTADAS
+app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 export default app;
