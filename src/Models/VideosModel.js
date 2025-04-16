@@ -55,7 +55,7 @@ const VideosSchema = new Schema(
       type: Number,
       min: [0, "Video duration cannot be less than 0 seconds"],
     },
-    date: {
+    birthday: {
       type: Date,
       required: true,
     },
