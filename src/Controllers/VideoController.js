@@ -7,7 +7,7 @@ class VideosController {
  
   async Create(req, res) {
     try {
-      const { title, language, videoFile, code } = req.body;
+      const { title, language, videoFile, code, country } = req.body;
 
       const foundCode = await VideosModel.findOne({ code });
       if (foundCode) {
@@ -17,6 +17,11 @@ class VideosController {
       const languageExists = await LanguageModel.findById(language);
       if (!languageExists) {
         return res.status(400).json({ message: "Linguagem não encontrada!" });
+      }
+
+      const countryExists = await CountryModel.findById(country);
+      if (!countryExists) {
+        return res.status(400).json({ message: "País não encontrado!" });
       }
 
       // Verificação do arquivo de vídeo
@@ -77,7 +82,8 @@ class VideosController {
         ...newVideo,
         archives: archivesID,
         transcription: transcription,
-        language: languageExists._id
+        language: languageExists._id,
+        country: countryExists._id
       };
 
       const video = await VideosModel.create(newVideo);
@@ -110,7 +116,7 @@ class VideosController {
           return res.status(400).json({ message: "Filtros não fornecidos." });
         }
     
-        console.log(filters); console.log("soh para ver e separar ")
+        //console.log(filters); console.log("soh para ver e separar ")
     
        
         const filterConditions = {};
@@ -171,7 +177,7 @@ class VideosController {
         if (filters.duration) {
           const duration = Number(filters.duration); 
         
-          
+        
           if (isNaN(duration)) {
             return res.status(400).json({ message: "Duração inválida." });
           }
@@ -180,7 +186,7 @@ class VideosController {
         }
     
         
-        //console.log("Filtro gerado:", filterConditions);
+        console.log("Filtro gerado:", filterConditions);
     
         
         const videos = await VideosModel.find(filterConditions)
@@ -196,7 +202,7 @@ class VideosController {
           return res.status(404).json({ message: "Nenhum vídeo encontrado com os filtros aplicados." });
         }
        
-        //console.log(videos);
+      console.log(videos);
        
         return res.status(200).json(videos);
     
