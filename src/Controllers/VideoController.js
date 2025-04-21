@@ -10,6 +10,7 @@ class VideosController {
   async Create(req, res) {
     try {
       console.log('Iniciando processo de criação de vídeo...');
+
       const { 
         title, 
         language, 
@@ -23,6 +24,7 @@ class VideosController {
         context,
         ShortDescription
       } = req.body;
+
       const requiredFields = {
         title: 'Título',
         language: 'Idioma',
@@ -34,17 +36,18 @@ class VideosController {
         context: 'Contexto',
         ShortDescription: 'Descrição curta'
       };
-      
+
       const missingFields = Object.entries(requiredFields)
         .filter(([field]) => !req.body[field])
         .map(([_, name]) => name);
-      
+
       if (missingFields.length > 0) {
         return res.status(400).json({ 
           message: "Campos obrigatórios faltando!",
           missingFields
         });
       }
+
       const foundCode = await VideosModel.findOne({ code });
       if (foundCode) {
         return res.status(409).json({ message: "Código já cadastrado!" });
@@ -52,7 +55,6 @@ class VideosController {
 
       const regex = /^data:(video\/)(\w+)(;base64,)(.+)$/;
       const matches = videoFile.match(regex);
-
       if (!matches) {
         return res.status(400).json({ message: 'Formato de vídeo inválido!' });
       }
@@ -60,7 +62,6 @@ class VideosController {
       const dataType = matches[2];
       const videoFileData = matches[4];
       const videoBuffer = Buffer.from(videoFileData, 'base64');
-
       if (videoBuffer.length === 0) {
         return res.status(400).json({ message: "Arquivo de vídeo vazio!" });
       }
@@ -81,30 +82,36 @@ class VideosController {
         name: `${title}-${code}`,
       });
 
-      const transcription = await generateTranscription(videoPath, language);
+      const transcription = await generateTranscription(videoPath, language, title);
       console.log('Resultado da transcrição:', transcription ? 'Sucesso' : 'Falha');
 
       await fs.promises.unlink(videoPath).catch(console.error);
 
-    const videoData = {
-    title,
-    language,
-    code,
-    archives: archivesID,
-    transcription: transcription.transcription || "Transcrição não disponível", 
-    duration: convertToMinutes(duration || 0),
-    date: date || new Date(),
-    country,
-    totalParticipants: Number(totalParticipants),
-    responsibles,
-    context,
-    ShortDescription
-    };
+      const videoData = {
+        title,
+        language,
+        code,
+        archives: archivesID,
+        transcription: transcription.transcription || "Transcrição não disponível", 
+        duration: convertToMinutes(duration || 0),
+        date: date || new Date(),
+        country,
+        totalParticipants: Number(totalParticipants),
+        responsibles,
+        context,
+        ShortDescription
+      };
 
       const video = await VideosModel.create(videoData);
       console.log('Vídeo criado com sucesso:', video._id);
 
-      return res.status(201).json(video);
+      return res.status(201).json({
+        message: "Vídeo criado com sucesso",
+        video,
+        thumbURL: thumbFile,
+        transcription: transcription.transcription || "Transcrição não disponível",
+        transcriptURL: transcription.transcriptURL
+      });
 
     } catch (error) {
       console.error('Erro no servidor:', {
@@ -119,6 +126,29 @@ class VideosController {
       });
     }
   }
+  async DownloadVideo(req, res) {
+  try {
+    const { id } = req.params;
+    const video = await VideosModel.findById(id);
+
+    if (!video || !video.archives || !video.archives.videoFile) {
+      return res.status(404).json({ message: "Vídeo não encontrado" });
+    }
+
+    const base64 = video.archives.videoFile;
+    const buffer = Buffer.from(base64, 'base64');
+
+    res.set({
+      'Content-Type': 'video/mp4',
+      'Content-Disposition': `attachment; filename="${video.title}.mp4"`,
+    });
+
+    return res.send(buffer);
+  } catch (error) {
+    console.error("Erro ao baixar vídeo:", error);
+    return res.status(500).json({ message: "Erro interno no servidor" });
+  }
+}
   async GetVideo(req, res) {
     try {
       const videos = await VideosModel.find().populate('archives');
@@ -195,5 +225,5 @@ class VideosController {
     }
   }
 }
-  
-export default new VideosController(); 
+
+export default new VideosController();

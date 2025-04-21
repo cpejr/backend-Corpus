@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { SpeechClient } from '@google-cloud/speech';
 import { Storage } from '@google-cloud/storage';
+import PDFDocument from 'pdfkit';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -34,15 +35,14 @@ const LANGUAGE_MAP = {
 
 function normalizeLanguageCode(language) {
   if (!language) return 'en-US';
-  
+
   const normalized = language.toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, '');
-  
+
   return LANGUAGE_MAP[normalized] || 'en-US';
 }
-
 
 async function extractAudio(videoPath, outputFormat = 'flac') {
   if (!fs.existsSync(videoPath)) {
@@ -79,40 +79,45 @@ async function uploadToBucket(filePath, bucketName) {
   }
 }
 
-async function saveTranscriptToFile(transcription, videoPath, languageCode) {
-  // Diretório permanente para transcrições
+async function saveTranscriptToFile(transcription, videoPath, languageCode, customTitle = null) {
   const transcriptsDir = path.join(__dirname, '../../persistent_storage/transcripts');
   
   if (!fs.existsSync(transcriptsDir)) {
     fs.mkdirSync(transcriptsDir, { recursive: true });
   }
 
-  const videoName = path.basename(videoPath, path.extname(videoPath));
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const transcriptPath = path.join(transcriptsDir, `${videoName}_${timestamp}.txt`);
-  
-  const transcriptContent = [
-    `Transcrição do vídeo: ${videoName}`,
-    `Gerada em: ${new Date().toISOString()}`,
-    `Idioma: ${languageCode}`,
-    '----------------------------------------',
-    transcription
-  ].join('\n');
+  const safeTitle = customTitle 
+    ? customTitle.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ\s_-]/g, '')
+    : 'transcricao'; // Fallback se customTitle for null
 
-  await fs.promises.writeFile(transcriptPath, transcriptContent);
-  return transcriptPath;
+  const transcriptPath = path.join(transcriptsDir, `${safeTitle}.pdf`);
+
+  const doc = new PDFDocument({ margin: 50 });
+  const writeStream = fs.createWriteStream(transcriptPath);
+  doc.pipe(writeStream);
+
+  doc.fontSize(16).text(`Transcrição: ${safeTitle}`, { align: 'left' });
+  doc.moveDown();
+  doc.fontSize(12).text(`Gerada em: ${new Date().toLocaleString()}`);
+  doc.text(`Idioma: ${languageCode}`);
+  doc.moveDown().text('----------------------------------------');
+  doc.moveDown().fontSize(12).text(transcription, { align: 'left' });
+
+  doc.end();
+
+  return new Promise((resolve, reject) => {
+    writeStream.on('finish', () => resolve(transcriptPath));
+    writeStream.on('error', reject);
+  });
 }
-
-export async function generateTranscription(
-  videoPath,
-  language = 'en-US'
-) {
+export async function generateTranscription(videoPath, language = 'en-US', customTitle = null) {
   let audioPath;
-  
+
   try {
     if (!videoPath || !fs.existsSync(videoPath)) {
       throw new Error('Caminho do vídeo inválido');
     }
+
     const languageCode = normalizeLanguageCode(language);
     console.log(`Processando vídeo no idioma: ${languageCode}`);
 
@@ -136,24 +141,24 @@ export async function generateTranscription(
     const isLongAudio = (stats.size / (16000 * 2)) > 60;
 
     let transcription;
-    
+
     if (!isLongAudio) {
       console.log('Usando reconhecimento síncrono');
-      const [response] = await client.recognize({ 
-        audio: { uri: gcsUri }, 
-        config 
+      const [response] = await client.recognize({
+        audio: { uri: gcsUri },
+        config
       });
-      
+
       transcription = response.results
         .map(result => result.alternatives[0].transcript)
         .join('\n');
     } else {
       console.log('Usando reconhecimento assíncrono (áudio longo)');
-      const [operation] = await client.longRunningRecognize({ 
-        audio: { uri: gcsUri }, 
-        config 
+      const [operation] = await client.longRunningRecognize({
+        audio: { uri: gcsUri },
+        config
       });
-      
+
       const [response] = await operation.promise();
       transcription = response.results
         .map(result => result.alternatives[0].transcript)
@@ -164,14 +169,16 @@ export async function generateTranscription(
       throw new Error('Nenhum resultado de transcrição retornado');
     }
 
-    const transcriptPath = await saveTranscriptToFile(transcription, videoPath, languageCode);
+    const transcriptPath = await saveTranscriptToFile(transcription, videoPath, languageCode, customTitle);
     console.log(`Transcrição salva em: ${transcriptPath}`);
 
     return {
       success: true,
       transcription: transcription,
       transcriptPath: transcriptPath,
-      language: languageCode
+      transcriptURL: `/transcripts/${path.basename(transcriptPath)}`,
+      language: languageCode,
+      transcriptName: path.basename(transcriptPath),
     };
 
   } catch (error) {
