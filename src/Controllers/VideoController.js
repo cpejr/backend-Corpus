@@ -102,111 +102,98 @@ class VideosController {
   }
 
   
-    async GetVideoByParameters(req, res) {
-      try {
-        const filters = req.body;  
-    
-        if (!filters) {
-          return res.status(400).json({ message: "Filtros não fornecidos." });
-        }
-    
-        console.log(filters); console.log("soh para ver e separar ")
-    
-       
-        const filterConditions = {};
-    
+  async GetVideoByParameters(req, res) {
+    try {
+      const filters = req.body;  
       
+      if (!filters) {
+        return res.status(400).json({ message: "Filtros não fornecidos." });
+      }
+  
+      console.log(filters);  // Apenas para debug
+  
+      const filterConditions = {};
+  
+      // Filtro para a quantidade de participantes
       if (filters.totalParticipants) {
-   
         const { min, max } = filters.totalParticipants;
-      
-       
+        
         if (isNaN(min) || (max && isNaN(max))) {
           return res.status(400).json({ message: "Intervalo de participantes inválido." });
         }
-      
-      
+  
         let participantFilter = {};
-      
         if (min) participantFilter.$gte = Number(min); 
         if (max) participantFilter.$lte = Number(max);
-      
-       
+  
         filterConditions.totalParticipants = participantFilter;
       }
-      
-
-       
-        if (filters.country) {
-          const countryDoc = await CountryModel.findOne({
-            name: { $regex: new RegExp(filters.country, "i") },
-          });
-    
-          if (countryDoc) {
-            filterConditions.country = countryDoc._id; 
-          } else {
-            return res.status(404).json({ message: "País não encontrado." });
-          }
+  
+      // Filtro para o país
+      if (filters.country) {
+        const countryDoc = await CountryModel.findOne({
+          name: { $regex: new RegExp(filters.country, "i") },
+        });
+  
+        if (countryDoc) {
+          filterConditions.country = countryDoc._id; 
+        } else {
+          return res.status(404).json({ message: "País não encontrado." });
         }
-    
-        // Filtro para a linguagem (busca por nome)
-        if (filters.language) {
+      }
+  
+      // Filtro para as linguagens (verificando se é um array ou uma string)
+      if (filters.language) {
+        if (Array.isArray(filters.language)) {
+          // Se for um array de idiomas, usamos o operador $in
+          filterConditions.language = { $in: filters.language };
+        } else {
+          // Se for uma string única, usamos o método de busca atual
           const languageDoc = await LanguageModel.findOne({
-            name: { $regex: new RegExp(filters.language, "i") }, 
+            name: { $regex: new RegExp(filters.language, "i") },
           });
-    
+  
           if (languageDoc) {
             filterConditions.language = languageDoc._id; 
           } else {
             return res.status(404).json({ message: "Linguagem não encontrada." });
           }
         }
-    
-        // Filtro para a data
-        if (filters.dates) {
-          filterConditions.date = { $gte: new Date(filters.dates) }; 
-        }
-    
-        // Filtro para a duração
-        if (filters.duration) {
-          const duration = Number(filters.duration); 
-        
-          
-          if (isNaN(duration)) {
-            return res.status(400).json({ message: "Duração inválida." });
-          }
-        
-          filterConditions.duration = { $gte: duration }; 
-        }
-    
-        
-        //console.log("Filtro gerado:", filterConditions);
-    
-        
-        const videos = await VideosModel.find(filterConditions)
-          .populate("language")  
-          .populate("country");  
-        
-
-
- 
-
-        
-        if (!videos || videos.length === 0) {
-          return res.status(404).json({ message: "Nenhum vídeo encontrado com os filtros aplicados." });
-        }
-       
-        //console.log(videos);
-       
-        return res.status(200).json(videos);
-    
-        
-
-      } catch (error) {
-        console.error("Erro ao buscar vídeos:", error);
-        return res.status(500).json({ message: "Erro ao buscar vídeos", error: error.message });
       }
+  
+      // Filtro para a data
+      if (filters.dates) {
+        filterConditions.date = { $gte: new Date(filters.dates) };
+      }
+  
+      // Filtro para a duração
+      if (filters.duration) {
+        const duration = Number(filters.duration);
+  
+        if (isNaN(duration)) {
+          return res.status(400).json({ message: "Duração inválida." });
+        }
+  
+        filterConditions.duration = { $gte: duration };
+      }
+  
+      // Consulta ao banco de dados com os filtros
+      const videos = await VideosModel.find(filterConditions)
+        .populate("language")
+        .populate("country");
+  
+      if (!videos || videos.length === 0) {
+        return res.status(404).json({ message: "Nenhum vídeo encontrado com os filtros aplicados." });
+      }
+  
+      return res.status(200).json(videos);
+      
+    } catch (error) {
+      console.error("Erro ao buscar vídeos:", error);
+      return res.status(500).json({ message: "Erro ao buscar vídeos", error: error.message });
     }
+  }
+  
     
   
   
