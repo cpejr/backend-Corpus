@@ -5,7 +5,9 @@ import { validateRequest } from "zod-express-middleware";
 const create = validateRequest({
   body: z.object({
     title: z.string({ required_error: "O titulo é obrigatório" }),
-    description: z.string({ required_error: "A descrição é obrigatória" }),
+    description: z.string({
+      required_error: "A descrição é obrigatória",
+    }).max(500, { message: "A descrição deve ter no máximo 500 caracteres" }),
     videoFile: z.string({ required_error: "O video é obrigatório" }),
     code: z.string({ required_error: "O código é obrigatório" }),
     context: z.string({ required_error: "O contexto é obrigatória" }),
