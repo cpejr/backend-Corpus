@@ -14,12 +14,12 @@ class VideosController {
         return res.status(409).json({ message: "Código já cadastrado!" });
       }
 
-      const languageExists = await LanguageModel.findById(language);
+      const languageExists = await LanguageModel.findOne({ name: language });
       if (!languageExists) {
         return res.status(400).json({ message: "Linguagem não encontrada!" });
       }
 
-      const countryExists = await CountryModel.findById(country);
+      const countryExists = await CountryModel.findOne({ name: country });
       if (!countryExists) {
         return res.status(400).json({ message: "País não encontrado!" });
       }
@@ -116,10 +116,10 @@ class VideosController {
           return res.status(400).json({ message: "Filtros não fornecidos." });
         }
     
-        //console.log(filters); console.log("soh para ver e separar ")
+        console.log(filters); console.log("soh para ver e separar ")
     
        
-        const filterConditions = {};
+        let filterConditions = {};
     
       
       if (filters.totalParticipants) {
@@ -190,9 +190,7 @@ class VideosController {
     
         
         const videos = await VideosModel.find(filterConditions)
-          .populate("language")  
-          .populate("country");  
-        
+          
 
 
  
@@ -202,7 +200,7 @@ class VideosController {
           return res.status(404).json({ message: "Nenhum vídeo encontrado com os filtros aplicados." });
         }
        
-      console.log(videos);
+      
        
         return res.status(200).json(videos);
     
