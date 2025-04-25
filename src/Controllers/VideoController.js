@@ -104,45 +104,82 @@ class VideosController {
 
   async GetVideoByParameters(req, res) {
     try {
-      let videos = await VideosModel.find();
-      //Undefined until filter is sent
-
-      if (req.query.filters) {
-        const { totalParticipants, dates, duration, country, language } = req.query.filters;
-        let filter = {};
-
-        if (totalParticipants) {
-          if (totalParticipants.min == 10) {
-            filter.totalParticipants = { $gte: Number(11) };
-          } else {
-            filter.totalParticipants = {
-              $gte: Number(totalParticipants.min),
-              $lte: Number(totalParticipants.max),
-            };
-          }
-        }
-        if (country) {
-          filter.country = country;
-        }
-        if (language) {
-          filter.language = language;
-        }
-        if (dates) {
-          filter.date = { $gte: new Date(dates) }; // searches for date greater than or equal
-        }
-        if (duration) {
-          filter.duration = { $gte: Number(duration) }; // searches for duration greater than or equal
-        }
-
-        videos = await VideosModel.find(filter);
+      const filters = req.query;  
+  
+      if (!filters) {
+        return res.status(400).json({ message: "Filtros não fornecidos." });
       }
-
+  
+      console.log(filters); console.log("soh para ver e separar");
+  
+      const filterConditions = {};
+  
+      if (filters.totalParticipants) {
+        const { min, max } = JSON.parse(filters.totalParticipants);  // pois no query params vai vir como string
+  
+        if (isNaN(min) || (max && isNaN(max))) {
+          return res.status(400).json({ message: "Intervalo de participantes inválido." });
+        }
+  
+        let participantFilter = {};
+        if (min) participantFilter.$gte = Number(min); 
+        if (max) participantFilter.$lte = Number(max);
+  
+        filterConditions.totalParticipants = participantFilter;
+      }
+  
+      if (filters.country) {
+        const countryDoc = await CountryModel.findOne({
+          name: { $regex: new RegExp(filters.country, "i") },
+        });
+  
+        if (countryDoc) {
+          filterConditions.country = countryDoc._id; 
+        } else {
+          return res.status(404).json({ message: "País não encontrado." });
+        }
+      }
+  
+      if (filters.language) {
+        const languageDoc = await LanguageModel.findOne({
+          name: { $regex: new RegExp(filters.language, "i") },
+        });
+  
+        if (languageDoc) {
+          filterConditions.language = languageDoc._id; 
+        } else {
+          return res.status(404).json({ message: "Linguagem não encontrada." });
+        }
+      }
+  
+      if (filters.dates) {
+        filterConditions.date = { $gte: new Date(filters.dates) }; 
+      }
+  
+      if (filters.duration) {
+        const duration = Number(filters.duration); 
+        if (isNaN(duration)) {
+          return res.status(400).json({ message: "Duração inválida." });
+        }
+        filterConditions.duration = { $gte: duration };
+      }
+  
+      console.log("Filtro gerado:", filterConditions);
+  
+      const videos = await VideosModel.find(filterConditions);
+  
+      if (!videos || videos.length === 0) {
+        return res.status(404).json({ message: "Nenhum vídeo encontrado com os filtros aplicados." });
+      }
+  
       return res.status(200).json(videos);
+  
     } catch (error) {
-      console.log(error);
-      res.status(500).json({ message: "Not found", error: error.message });
+      console.error("Erro ao buscar vídeos:", error);
+      return res.status(500).json({ message: "Erro ao buscar vídeos", error: error.message });
     }
   }
+  
   async UpdateVideo(req, res) {
     try {
       const { id } = req.params;
