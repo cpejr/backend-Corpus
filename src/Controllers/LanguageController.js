@@ -4,19 +4,19 @@ class LanguageController {
   
   async createLanguage(req, res) {
     try {
-      const { name, code } = req.body;
+      const { name } = req.body;
 
-      if (!name || !code) {
+      if (!name ) {
         return res.status(400).json({ message: "Campos obrigatórios não preenchidos." });
       }
 
-      const alreadyExists = await LanguageModel.findOne({ $or: [{ name }, { code }] });
+      const alreadyExists = await LanguageModel.findOne({ $or: [{ name }] });
 
       if (alreadyExists) {
         return res.status(409).json({ message: "Língua já cadastrada!" });
       }
 
-      const language = await LanguageModel.create({ name, code });
+      const language = await LanguageModel.create({ name});
       return res.status(201).json(language);
     } catch (error) {
       return res.status(500).json({ message: "Erro no servidor", error: error.message });
@@ -37,9 +37,9 @@ class LanguageController {
   // Função para buscar idiomas com base nos parâmetros passados pelo body
   async getLanguageFromBody(req, res) {
     try {
-      const { id, name, code } = req.body; // Recebe os parâmetros pelo body
+      const { id, name } = req.body; // Recebe os parâmetros pelo body
 
-      if (!id && !name && !code) {
+      if (!id && !name ) {
         return res.status(400).json({ message: "É necessário fornecer ao menos um parâmetro: id, name ou code." });
       }
 
@@ -47,7 +47,7 @@ class LanguageController {
       let filter = {};
       if (id) filter._id = id;  // Se id foi enviado, adiciona ao filtro
       if (name) filter.name = name;  // Se name foi enviado, adiciona ao filtro
-      if (code) filter.code = code;  // Se code foi enviado, adiciona ao filtro
+        
 
       const language = await LanguageModel.findOne(filter); // Busca o idioma no banco
 

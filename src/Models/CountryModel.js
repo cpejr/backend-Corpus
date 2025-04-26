@@ -8,14 +8,7 @@ const CountrySchema = new mongoose.Schema(
       required: true,
       unique: true,
       trim: true,
-    },
-    code: {
-      type: String,
-      required: true,
-      unique: true,
-      uppercase: true,
-      trim: true,
-    },
+    }
   },
   { timestamps: true }
 );
