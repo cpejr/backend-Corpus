@@ -1,9 +1,9 @@
 import VideosModel from "../Models/VideosModel.js";
-import CountryModel from "../Models/CountryModel.js";  // Importando o modelo de país
-import LanguageModel from "../Models/LanguageModel.js";  // Importando o modelo de idioma
+import CountryModel from "../Models/CountryModel.js";  
+import LanguageModel from "../Models/LanguageModel.js"; 
 
 class VideosController {
-  // Função de criação de vídeo
+ 
   async Create(req, res) {
     try {
       const { title, language, videoFile, code } = req.body;
@@ -94,13 +94,13 @@ class VideosController {
 
 
 
-  // Função para buscar vídeos com base nos parâmetros
+  
   async GetVideoByParameters(req, res) {
     try {
-      const { totalParticipants, dates, duration, country, language } = req.query.filters || {};  // Recebe os filtros da query
+      const { totalParticipants, dates, duration, country, language } = req.query.filters || {};  
       let filter = {};
 
-      // Filtro para número de participantes
+     
       if (totalParticipants) {
         if (totalParticipants.min == 10) {
           filter.totalParticipants = { $gte: Number(11) };
@@ -114,19 +114,19 @@ class VideosController {
 
       
       if (country) {
-        const countryDoc = await CountryModel.findOne({ name: { $regex: new RegExp(country, "i") } });  // Buscando pelo nome do país
+        const countryDoc = await CountryModel.findOne({ name: { $regex: new RegExp(country, "i") } });  
         if (countryDoc) {
-          filter.country = countryDoc._id;  // Adiciona o ObjectId do país ao filtro
+          filter.country = countryDoc._id; 
         } else {
           return res.status(404).json({ message: "País não encontrado." });
         }
       }
 
-      // Buscar o ObjectId do idioma pelo nome (passado como string)
+      
       if (language) {
-        const languageDoc = await LanguageModel.findOne({ name: { $regex: new RegExp(language, "i") } });  // Buscando pelo nome do idioma
+        const languageDoc = await LanguageModel.findOne({ name: { $regex: new RegExp(language, "i") } });  
         if (languageDoc) {
-          filter.language = languageDoc._id;  // Adiciona o ObjectId do idioma ao filtro
+          filter.language = languageDoc._id;  
         } else {
           return res.status(404).json({ message: "Linguagem não encontrada." });
         }
@@ -140,13 +140,13 @@ class VideosController {
         filter.duration = { $gte: Number(duration) };
       }
 
-      // Log para verificar o filtro gerado
+    
       console.log('Filtro aplicado:', filter);
 
-      // Buscando vídeos com o filtro gerado
+   
       const videos = await VideosModel.find(filter)
-        .populate('country')   // Popula o campo country com os dados do país
-        .populate('language'); // Popula o campo language com os dados do idioma
+        .populate('country')   
+        .populate('language'); 
 
       return res.status(200).json(videos);
     } catch (error) {
@@ -155,7 +155,7 @@ class VideosController {
     }
   }
 
-  // Outras funções (Update, Delete)
+  
   async UpdateVideo(req, res) {
     try {
       const { id } = req.params;
