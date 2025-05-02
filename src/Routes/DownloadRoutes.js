@@ -5,26 +5,19 @@ import { fileURLToPath } from 'url';
 
 const DownloadRoutes = express.Router();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const name = fileURLToPath(import.meta.url);
+const dirname = path.dirname(name);
 
-DownloadRoutes.get('/download/transcript/:filename', (req, res) => {
+DownloadRoutes.get('/transcript/:filename', (req, res) => {
   const filename = req.params.filename;
-  const transcriptPath = path.join(__dirname, '../persistent_storage/transcripts', filename);
+  const transcriptPath = path.join(dirname, '../persistent_storage/transcripts', filename);
 
-  if (!fs.existsSync(transcriptPath)) {
-    console.error(`Arquivo não encontrado: ${transcriptPath}`);
-    return res.status(404).json({ 
-      message: 'Arquivo não encontrado',
-      attemptedPath: transcriptPath
+  fs.access(transcriptPath, fs.constants.F_OK, (err) => {
+    if (err) return res.end(); 
+
+    res.download(transcriptPath, filename, (err) => {
+      if (err) res.end();
     });
-  }
-
-  res.download(transcriptPath, filename, (err) => {
-    if (err) {
-      console.error('Erro ao baixar arquivo:', err);
-      res.status(500).send('Erro ao baixar o arquivo');
-    }
   });
 });
 

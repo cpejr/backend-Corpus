@@ -12,6 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 process.env.GOOGLE_APPLICATION_CREDENTIALS = path.resolve(__dirname, 'google.json');
+
 const client = new SpeechClient();
 const storage = new Storage();
 
