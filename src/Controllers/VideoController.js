@@ -1,17 +1,26 @@
 import VideosModel from "../Models/VideosModel.js";
-import CountryModel from "../Models/CountryModel.js";  // Importando o modelo de país
-import LanguageModel from "../Models/LanguageModel.js";  // Importando o modelo de idioma
+import { generateThumb } from "../Utils/general/generateThumb.js";
+import { generateTranscription } from "../Utils/general/generateTranscription.js";
+import fs from "fs";
+import path from "path";
+import ArchivesController from "./ArchivesController.js";
+import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
+import CountryModel from "../Models/CountryModel.js";
+import LanguageModel from "../Models/LanguageModel.js";
 
 class VideosController {
-  // Função de criação de vídeo
+
   async Create(req, res) {
     try {
-      const { title, language, videoFile, code } = req.body;
+      const { title, language, country, videoFile, code } = req.body;
+
+      
       const foundCode = await VideosModel.findOne({ code });
       if (foundCode) {
         return res.status(409).json({ message: "Código já cadastrado!" });
       }
 
+     
       if (!videoFile) {
         return res.status(400).json({ message: "Arquivo de vídeo não fornecido!" });
       }
@@ -19,24 +28,24 @@ class VideosController {
       const regex = /^data:(video\/)(\w+)(;base64,)(.+)$/;
       const matches = videoFile.match(regex);
 
-      let dataType;
-      let videoFileData;
-      
+      let dataType, videoFileData;
+
       if (matches) {
         dataType = matches[2];
         videoFileData = matches[4];
       } else {
-        return res.status(409).json({ message: 'A string Base64 não está no formato esperado.'});
+        return res.status(409).json({ message: 'A string Base64 não está no formato esperado.' });
       }
 
+      // Convertendo o arquivo de vídeo de base64 para binário
       const videoBuffer = Buffer.from(videoFileData, 'base64');
-
       if (videoBuffer.length === 0) {
         return res.status(400).json({ message: "Arquivo de vídeo vazio/inválido!" });
       }
+
       const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
       const videoStream = fs.createWriteStream(videoPath);
-      
+
       videoStream.write(videoBuffer);
       videoStream.end();
 
@@ -44,41 +53,73 @@ class VideosController {
         return res.status(500).json({ message: "'Erro ao salvar o arquivo:'", error: err });
       });
 
+      // Gerando a thumbnail do vídeo
       const thumbFile = await generateThumb(videoPath);
-
       if (!thumbFile) {
         return res.status(500).json({ message: "Erro ao gerar a thumbnail!" });
       }
 
+      
       const archivesID = await ArchivesController.createArchives({
-        thumbFile: thumbFile, 
+        thumbFile: thumbFile,
         videoFile: videoFileData,
         name: `${title}-${code}`,
       });
 
-      let transcription = "placegolder"
       await fs.promises.unlink(videoPath);
+
+      
+      const languageList = Array.isArray(language) ? language : [language];
+      const countryList = Array.isArray(country) ? country : [country];
+
+      
+      const languagesInDB = await LanguageModel.find({
+        name: { $in: languageList.map(lang => lang.toLowerCase()) }
+      });
+
+      if (languagesInDB.length !== languageList.length) {
+        const missingLanguages = languageList.filter(lang => !languagesInDB.some(doc => doc.name.toLowerCase() === lang.toLowerCase()));
+        return res.status(404).json({ message: `Os seguintes idiomas não foram encontrados: ${missingLanguages.join(', ')}` });
+      }
+
+      const countriesInDB = await CountryModel.find({
+        name: { $in: countryList.map(c => c.toLowerCase()) }
+      });
+
+      if (countriesInDB.length !== countryList.length) {
+        const missingCountries = countryList.filter(c => !countriesInDB.some(doc => doc.name.toLowerCase() === c.toLowerCase()));
+        return res.status(404).json({ message: `Os seguintes países não foram encontrados: ${missingCountries.join(', ')}` });
+      }
+
       
       let newVideo = req.body;
       delete newVideo.videoFile;
 
-      newVideo = { ...newVideo, archives: archivesID, transcription: transcription ,duration:convertToMinutes(req.body.duration) };
-      delete newVideo.description
-      delete newVideo.responsible
+      newVideo = {
+        ...newVideo,
+        language: languagesInDB.map(doc => doc._id), 
+        country: countriesInDB.map(doc => doc._id),   
+        archives: archivesID,
+        transcription: "placeholder", 
+        duration: convertToMinutes(req.body.duration),
+      };
 
+      delete newVideo.description;
+      delete newVideo.responsible;
+
+      
       try {
         const video = await VideosModel.create(newVideo);
         return res.status(200).json(video);
-      } catch(err) {
-        console.log(err)
+      } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: "Erro ao criar o vídeo", error: err.message });
       }
-
     } catch (error) {
-      res.status(500).json({ message: "Erro no servidor", error: error.message });
+      console.error("Erro no servidor:", error);
+      return res.status(500).json({ message: "Erro no servidor", error: error.message });
     }
   }
-
-
 
   async GetVideo(req, res) {
     try {
@@ -92,15 +133,11 @@ class VideosController {
     }
   }
 
-
-
-  // Função para buscar vídeos com base nos parâmetros
   async GetVideoByParameters(req, res) {
     try {
-      const { totalParticipants, dates, duration, country, language } = req.query.filters || {};  // Recebe os filtros da query
+      const { totalParticipants, dates, duration, country, language } = req.query;  
       let filter = {};
 
-      // Filtro para número de participantes
       if (totalParticipants) {
         if (totalParticipants.min == 10) {
           filter.totalParticipants = { $gte: Number(11) };
@@ -112,23 +149,27 @@ class VideosController {
         }
       }
 
-      
       if (country) {
-        const countryDoc = await CountryModel.findOne({ name: { $regex: new RegExp(country, "i") } });  // Buscando pelo nome do país
-        if (countryDoc) {
-          filter.country = countryDoc._id;  // Adiciona o ObjectId do país ao filtro
+        const countryList = country.split(',').map(c => c.trim()); 
+        const countries = await CountryModel.find({
+          name: { $in: countryList.map(c => new RegExp(c, "i")) } 
+        });
+        if (countries.length > 0) {
+          filter.country = { $all: countries.map(c => c._id) }; 
         } else {
-          return res.status(404).json({ message: "País não encontrado." });
+          return res.status(404).json({ message: "Países não encontrados." });
         }
       }
 
-      // Buscar o ObjectId do idioma pelo nome (passado como string)
       if (language) {
-        const languageDoc = await LanguageModel.findOne({ name: { $regex: new RegExp(language, "i") } });  // Buscando pelo nome do idioma
-        if (languageDoc) {
-          filter.language = languageDoc._id;  // Adiciona o ObjectId do idioma ao filtro
+        const languageList = language.split(',').map(l => l.trim()); 
+        const languages = await LanguageModel.find({
+          name: { $in: languageList.map(l => new RegExp(l, "i")) }  
+        });
+        if (languages.length > 0) {
+          filter.language = { $all: languages.map(l => l._id) }; 
         } else {
-          return res.status(404).json({ message: "Linguagem não encontrada." });
+          return res.status(404).json({ message: "Idiomas não encontrados." });
         }
       }
 
@@ -140,13 +181,11 @@ class VideosController {
         filter.duration = { $gte: Number(duration) };
       }
 
-      // Log para verificar o filtro gerado
-      console.log('Filtro aplicado:', filter);
+      console.log("Filtro construído:", JSON.stringify(filter, null, 2));
 
-      // Buscando vídeos com o filtro gerado
       const videos = await VideosModel.find(filter)
-        .populate('country')   // Popula o campo country com os dados do país
-        .populate('language'); // Popula o campo language com os dados do idioma
+        .populate('country')   
+        .populate('language'); 
 
       return res.status(200).json(videos);
     } catch (error) {
@@ -155,7 +194,6 @@ class VideosController {
     }
   }
 
-  // Outras funções (Update, Delete)
   async UpdateVideo(req, res) {
     try {
       const { id } = req.params;
@@ -170,7 +208,6 @@ class VideosController {
     try {
       const { id } = req.params;
       const video = await VideosModel.findById(id);
-      console.log(video.archives._id);
       await ArchivesController.deleteArchives(video.archives?._id);
 
       await VideosModel.findByIdAndDelete(id);

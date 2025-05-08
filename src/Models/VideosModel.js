@@ -40,16 +40,16 @@ const VideosSchema = new Schema(
       required: true,
       trim: true,
     },
-    country: {
+    country: [{
       type: Schema.Types.ObjectId,
       ref: "Country", // referencia para a collection de países
       required: true,
-    },
-    language: {
+    }],
+    language: [{
       type: Schema.Types.ObjectId,
       ref: "Language", // referencia para a collection de línguas
       required: true,
-    },
+    }],
     duration: {
       type: Number,
       min: [0, "Video duration cannot be less than 0 seconds"],
