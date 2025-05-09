@@ -8,15 +8,15 @@ import { SpeechClient } from '@google-cloud/speech';
 import { Storage } from '@google-cloud/storage';
 import PDFDocument from 'pdfkit';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDirName = dirname(currentFilePath);
 
-process.env.GOOGLE_APPLICATION_CREDENTIALS = path.resolve(__dirname, 'google.json');
+process.env.GOOGLE_APPLICATION_CREDENTIALS = path.resolve(currentDirName, 'google.json');
 
-const client = new SpeechClient();
-const storage = new Storage();
+const speechClient = new SpeechClient();
+const storageClient = new Storage();
 
-const LANGUAGE_MAP = {
+const languageMap = {
   'portugues': 'pt-BR',
   'pt': 'pt-BR',
   'pt-br': 'pt-BR',
@@ -42,12 +42,12 @@ function normalizeLanguageCode(language) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, '');
 
-  return LANGUAGE_MAP[normalized] || 'en-US';
+  return languageMap[normalized] || 'en-US';
 }
 
 async function extractAudio(videoPath, outputFormat = 'flac') {
   if (!fs.existsSync(videoPath)) {
-    throw new Error(`Arquivo de vídeo não encontrado: ${videoPath}`);
+    throw new Error(`Video file not found: ${videoPath}`);
   }
 
   return new Promise((resolve, reject) => {
@@ -70,34 +70,34 @@ async function extractAudio(videoPath, outputFormat = 'flac') {
 async function uploadToBucket(filePath, bucketName) {
   try {
     const destination = path.basename(filePath);
-    await storage.bucket(bucketName).upload(filePath, {
+    await storageClient.bucket(bucketName).upload(filePath, {
       destination,
       resumable: false
     });
     return `gs://${bucketName}/${destination}`;
   } catch (error) {
-    throw new Error(`Falha no upload para o bucket: ${error.message}`);
+    throw new Error(`Bucket upload failed: ${error.message}`);
   }
 }
 
 async function saveTranscriptToFile(transcription, videoPath, languageCode, customTitle = null) {
-  const transcriptsDir = path.join(__dirname, '../../persistent_storage/transcripts');
+  const transcriptsDir = path.join(currentDirName, '../../persistent_storage/transcripts');
   
   if (!fs.existsSync(transcriptsDir)) {
     fs.mkdirSync(transcriptsDir, { recursive: true });
   }
 
-
-  const transcriptPath = path.join(transcriptsDir, `${safeTitle}.pdf`);
+  const fileName = customTitle || path.basename(videoPath, path.extname(videoPath));
+  const transcriptPath = path.join(transcriptsDir, `${fileName}.pdf`);
 
   const doc = new PDFDocument({ margin: 50 });
   const writeStream = fs.createWriteStream(transcriptPath);
   doc.pipe(writeStream);
 
-  doc.fontSize(16).text(`Transcrição: ${safeTitle}`, { align: 'left' });
+  doc.fontSize(16).text(`Transcript: ${fileName}`, { align: 'left' });
   doc.moveDown();
-  doc.fontSize(12).text(`Gerada em: ${new Date().toLocaleString()}`);
-  doc.text(`Idioma: ${languageCode}`);
+  doc.fontSize(12).text(`Generated at: ${new Date().toLocaleString()}`);
+  doc.text(`Language: ${languageCode}`);
   doc.moveDown().text('----------------------------------------');
   doc.moveDown().fontSize(12).text(transcription, { align: 'left' });
 
@@ -108,22 +108,23 @@ async function saveTranscriptToFile(transcription, videoPath, languageCode, cust
     writeStream.on('error', reject);
   });
 }
+
 export async function generateTranscription(videoPath, language = 'en-US', customTitle = null) {
   let audioPath;
 
   try {
     if (!videoPath || !fs.existsSync(videoPath)) {
-      throw new Error('Caminho do vídeo inválido');
+      throw new Error('Invalid video path');
     }
 
     const languageCode = normalizeLanguageCode(language);
-    console.log(`Processando vídeo no idioma: ${languageCode}`);
+    console.log(`Processing video in language: ${languageCode}`);
 
     audioPath = await extractAudio(videoPath);
-    console.log(`Áudio extraído: ${audioPath}`);
+    console.log(`Audio extracted: ${audioPath}`);
 
-    const gcsUri = await uploadToBucket(audioPath, 'api-transcription');
-    console.log(`Arquivo enviado para: ${gcsUri}`);
+    const cloudStorageUri = await uploadToBucket(audioPath, 'api-transcription');
+    console.log(`File uploaded to cloud storage: ${cloudStorageUri}`);
 
     const config = {
       encoding: 'FLAC',
@@ -135,15 +136,15 @@ export async function generateTranscription(videoPath, language = 'en-US', custo
       model: 'default'
     };
 
-    const stats = fs.statSync(audioPath);
-    const isLongAudio = (stats.size / (16000 * 2)) > 60;
+    const audioFileStats = fs.statSync(audioPath);
+    const isLongAudio = (audioFileStats.size / (16000 * 2)) > 60;
 
     let transcription;
 
     if (!isLongAudio) {
-      console.log('Usando reconhecimento síncrono');
-      const [response] = await client.recognize({
-        audio: { uri: gcsUri },
+      console.log('Using synchronous recognition');
+      const [response] = await speechClient.recognize({
+        audio: { uri: cloudStorageUri },
         config
       });
 
@@ -151,9 +152,9 @@ export async function generateTranscription(videoPath, language = 'en-US', custo
         .map(result => result.alternatives[0].transcript)
         .join('\n');
     } else {
-      console.log('Usando reconhecimento assíncrono (áudio longo)');
-      const [operation] = await client.longRunningRecognize({
-        audio: { uri: gcsUri },
+      console.log('Using asynchronous recognition (long audio)');
+      const [operation] = await speechClient.longRunningRecognize({
+        audio: { uri: cloudStorageUri },
         config
       });
 
@@ -164,27 +165,27 @@ export async function generateTranscription(videoPath, language = 'en-US', custo
     }
 
     if (!transcription) {
-      throw new Error('Nenhum resultado de transcrição retornado');
+      throw new Error('No transcription results returned');
     }
 
     const transcriptPath = await saveTranscriptToFile(transcription, videoPath, languageCode, customTitle);
-    console.log(`Transcrição salva em: ${transcriptPath}`);
+    console.log(`Transcript saved at: ${transcriptPath}`);
 
     return {
       success: true,
       transcription: transcription,
       transcriptPath: transcriptPath,
-      transcriptURL: `/transcripts/${path.basename(transcriptPath)}`,
+      transcriptURL: `/transcripts/${encodeURIComponent(path.basename(transcriptPath))}`,
       language: languageCode,
       transcriptName: path.basename(transcriptPath),
     };
 
   } catch (error) {
-    console.error('Erro na transcrição:', error);
+    console.error('Transcription error:', error);
     return {
       success: false,
       error: error.message,
-      transcription: "Erro na transcrição",
+      transcription: "Transcription error",
       transcriptPath: null
     };
   } finally {
@@ -192,7 +193,7 @@ export async function generateTranscription(videoPath, language = 'en-US', custo
       try {
         await fs.promises.unlink(audioPath);
       } catch (err) {
-        console.error('Erro ao limpar áudio temporário:', err);
+        console.error('Error cleaning temporary audio:', err);
       }
     }
   }
