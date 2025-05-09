@@ -1,6 +1,10 @@
 import VideosModel from "../Models/VideosModel.js";
-import CountryModel from "../Models/CountryModel.js";  
-import LanguageModel from "../Models/LanguageModel.js"; 
+import { generateThumb } from "../Utils/general/generateThumb.js";
+import { generateTranscription } from "../Utils/general/generateTranscription.js";
+import fs from "fs";
+import path from "path";
+import ArchivesController from "./ArchivesController.js";
+import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
 
 class VideosController {
  
