@@ -87,9 +87,6 @@ async function saveTranscriptToFile(transcription, videoPath, languageCode, cust
     fs.mkdirSync(transcriptsDir, { recursive: true });
   }
 
-  const safeTitle = customTitle 
-    ? customTitle.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ\s_-]/g, '')
-    : 'transcricao'; // Fallback se customTitle for null
 
   const transcriptPath = path.join(transcriptsDir, `${safeTitle}.pdf`);
 
