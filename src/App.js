@@ -11,8 +11,8 @@ import { fileURLToPath } from "url";
 
 dotenv.config();
 const app = express();
-app.use(bodyParser.json({ limit: "100mb" }));
-app.use(express.urlencoded({ limit: "10000mb", extended: true }));
+app.use(bodyParser.json({ limit: "1000mb" }));
+app.use(express.urlencoded({ limit: "100mb", extended: true }));
 app.use(express.json());
 app.use(cors(corsOptions));
 app.use(cookieParser(process.env.COOKIE_SECRET));
