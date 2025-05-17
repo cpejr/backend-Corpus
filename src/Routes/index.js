@@ -9,8 +9,6 @@ import DownloadRoutes from "./DownloadRoutes.js";
 import CountryRoutes from "./CountryRoutes.js";
 import LanguageRoutes from "./LanguageRoutes.js";
 
-import express from "express";
-
 const routes = express.Router();
 
 routes.use("/", SessionRoutes);
