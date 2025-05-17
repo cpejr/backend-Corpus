@@ -6,6 +6,10 @@ import SessionRoutes from "./SessionRoutes.js";
 import VideoFilterRoutes from "./VideoFilterRoutes.js";
 import ArchiveRoutes from "./ArchivesRoutes.js";
 import DownloadRoutes from "./DownloadRoutes.js";
+import CountryRoutes from "./CountryRoutes.js";
+import LanguageRoutes from "./LanguageRoutes.js";
+
+import express from "express";
 
 const routes = express.Router();
 
@@ -15,6 +19,9 @@ routes.use("/category", CategoryRoutes);
 routes.use("/video", VideoRoutes);
 routes.use("/videofilter", VideoFilterRoutes);
 routes.use("/archive", ArchiveRoutes);
-routes.use("/", DownloadRoutes); 
+routes.use("/", DownloadRoutes);
+
+routes.use("/country", CountryRoutes);
+routes.use("/language", LanguageRoutes);
 
 export default routes;
