@@ -15,9 +15,9 @@ const VideosSchema = new Schema(
       trim: true,
     },
     archives: {
-        type: Schema.Types.ObjectId,
-        ref: "archives",
-        required: true,
+      type: Schema.Types.ObjectId,
+      ref: "archives",
+      required: true,
     },
     code: {
       type: String,
@@ -61,7 +61,7 @@ const VideosSchema = new Schema(
     },
     transcription: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
     },
   },

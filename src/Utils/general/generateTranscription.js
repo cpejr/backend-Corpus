@@ -1,69 +1,67 @@
-import ffmpeg from 'fluent-ffmpeg';
-import ffmpegStatic from 'ffmpeg-static';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-import { SpeechClient } from '@google-cloud/speech';
-import { Storage } from '@google-cloud/storage';
-import PDFDocument from 'pdfkit';
-import dotenv from 'dotenv';
 
-dotenv.config({ path: '.env.development' });
-const currentFilePath = fileURLToPath(import.meta.url);
-const currentDirName = dirname(currentFilePath);
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegStatic from "ffmpeg-static";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+import { SpeechClient } from "@google-cloud/speech";
+import { Storage } from "@google-cloud/storage";
+import PDFDocument from "pdfkit";
 
-const googleCredentials = {
-  type: process.env.GOOGLE_TYPE,
-  project_id: process.env.GOOGLE_PROJECT_ID,
-  private_key_id: process.env.GOOGLE_PRIVATE_KEY_ID,
-  private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-  client_email: process.env.GOOGLE_CLIENT_EMAIL,
-  client_id: process.env.GOOGLE_CLIENT_ID,
-  auth_uri: process.env.GOOGLE_AUTH_URI,
-  token_uri: process.env.GOOGLE_TOKEN_URI,
-  auth_provider_x509_cert_url: process.env.GOOGLE_AUTH_PROVIDER_CERT_URL,
-  client_x509_cert_url: process.env.GOOGLE_CLIENT_CERT_URL,
-  universe_domain: process.env.GOOGLE_UNIVERSE_DOMAIN
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-const speechClient = new SpeechClient({
-  credentials: googleCredentials
+//process.env.GOOGLE_APPLICATION_CREDENTIALS = path.resolve(__dirname, "google.json");
+const client = new SpeechClient({
+  credentials: {
+    client_email: process.env.GOOGLE_CLIENT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  },
+  projectId: process.env.GOOGLE_PROJECT_ID,
+});
+const storage = new Storage({
+  credentials: {
+    client_email: process.env.GOOGLE_CLIENT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  },
+  projectId: process.env.GOOGLE_PROJECT_ID,
 });
 
-const storageClient = new Storage({
-  credentials: googleCredentials
-});
-const languageMap = {
-  'portugues': 'pt-BR',
-  'pt': 'pt-BR',
-  'pt-br': 'pt-BR',
-  'ingles': 'en-US',
-  'inglês': 'en-US',
-  'english': 'en-US',
-  'espanhol': 'es-ES',
-  'español': 'es-ES',
-  'frances': 'fr-FR',
-  'francés': 'fr-FR',
-  'fr': 'fr-FR',
-  'alemao': 'de-DE',
-  'alemán': 'de-DE',
-  'italiano': 'it-IT',
-  'italian': 'it-IT',
+const LANGUAGE_MAP = {
+  portugues: "pt-BR",
+  pt: "pt-BR",
+  "pt-br": "pt-BR",
+  ingles: "en-US",
+  inglês: "en-US",
+  english: "en-US",
+  espanhol: "es-ES",
+  español: "es-ES",
+  frances: "fr-FR",
+  francés: "fr-FR",
+  fr: "fr-FR",
+  alemao: "de-DE",
+  alemán: "de-DE",
+  italiano: "it-IT",
+  italian: "it-IT",
+
 };
 
 function normalizeLanguageCode(language) {
-  if (!language) return 'en-US';
+  if (!language) return "en-US";
 
-  const normalized = language.toLowerCase()
+  const normalized = language
+    .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, '');
+    .replace(/\s+/g, "");
+
 
   return languageMap[normalized] || 'en-US';
+
 }
 
-async function extractAudio(videoPath, outputFormat = 'flac') {
+async function extractAudio(videoPath, outputFormat = "flac") {
   if (!fs.existsSync(videoPath)) {
     throw new Error(`Video file not found: ${videoPath}`);
   }
@@ -76,11 +74,11 @@ async function extractAudio(videoPath, outputFormat = 'flac') {
       .setFfmpegPath(ffmpegStatic)
       .output(audioPath)
       .noVideo()
-      .audioCodec('flac')
+      .audioCodec("flac")
       .audioChannels(1)
       .audioFrequency(16000)
-      .on('end', () => resolve(audioPath))
-      .on('error', reject)
+      .on("end", () => resolve(audioPath))
+      .on("error", reject)
       .run();
   });
 }
@@ -90,7 +88,7 @@ async function uploadToBucket(filePath, bucketName) {
     const destination = path.basename(filePath);
     await storageClient.bucket(bucketName).upload(filePath, {
       destination,
-      resumable: false
+      resumable: false,
     });
     return `gs://${bucketName}/${destination}`;
   } catch (error) {
@@ -99,40 +97,52 @@ async function uploadToBucket(filePath, bucketName) {
 }
 
 async function saveTranscriptToFile(transcription, videoPath, languageCode, customTitle = null) {
-  const transcriptsDir = path.join(currentDirName, '../../persistent_storage/transcripts');
-  
+
+  const transcriptsDir = path.join(__dirname, "../../persistent_storage/transcripts");
+
+
   if (!fs.existsSync(transcriptsDir)) {
     fs.mkdirSync(transcriptsDir, { recursive: true });
   }
 
-  const fileName = customTitle || path.basename(videoPath, path.extname(videoPath));
-  const transcriptPath = path.join(transcriptsDir, `${fileName}.pdf`);
+
+  const safeTitle = customTitle
+    ? customTitle.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
+    : "transcricao"; // Fallback se customTitle for null
+
+  const transcriptPath = path.join(transcriptsDir, `${safeTitle}.pdf`);
+
 
   const doc = new PDFDocument({ margin: 50 });
   const writeStream = fs.createWriteStream(transcriptPath);
   doc.pipe(writeStream);
 
-  doc.fontSize(16).text(`Transcript: ${fileName}`, { align: 'left' });
+
+  doc.fontSize(16).text(`Transcrição: ${safeTitle}`, { align: "left" });
   doc.moveDown();
-  doc.fontSize(12).text(`Generated at: ${new Date().toLocaleString()}`);
-  doc.text(`Language: ${languageCode}`);
-  doc.moveDown().text('----------------------------------------');
-  doc.moveDown().fontSize(12).text(transcription, { align: 'left' });
+  doc.fontSize(12).text(`Gerada em: ${new Date().toLocaleString()}`);
+  doc.text(`Idioma: ${languageCode}`);
+  doc.moveDown().text("----------------------------------------");
+  doc.moveDown().fontSize(12).text(transcription, { align: "left" });
+
 
   doc.end();
 
   return new Promise((resolve, reject) => {
-    writeStream.on('finish', () => resolve(transcriptPath));
-    writeStream.on('error', reject);
+    writeStream.on("finish", () => resolve(transcriptPath));
+    writeStream.on("error", reject);
   });
 }
 
-export async function generateTranscription(videoPath, language = 'en-US', customTitle = null) {
+export async function generateTranscription(videoPath, language = "en-US", customTitle = null) {
+
   let audioPath;
 
   try {
     if (!videoPath || !fs.existsSync(videoPath)) {
+
       throw new Error('Invalid video path');
+
     }
 
     const languageCode = normalizeLanguageCode(language);
@@ -141,53 +151,64 @@ export async function generateTranscription(videoPath, language = 'en-US', custo
     audioPath = await extractAudio(videoPath);
     console.log(`Audio extracted: ${audioPath}`);
 
+
     const cloudStorageUri = await uploadToBucket(audioPath, 'api-transcription');
     console.log(`File uploaded to cloud storage: ${cloudStorageUri}`);
 
+
+    //Config Aqui? trocar para novo arquivo
     const config = {
-      encoding: 'FLAC',
+      encoding: "FLAC",
       sampleRateHertz: 16000,
       languageCode: languageCode,
       enableAutomaticPunctuation: true,
       audioChannelCount: 1,
       enableWordConfidence: true,
-      model: 'default'
+      model: "default",
     };
+
 
     const audioFileStats = fs.statSync(audioPath);
     const isLongAudio = (audioFileStats.size / (16000 * 2)) > 60;
 
+
     let transcription;
 
     if (!isLongAudio) {
+
       console.log('Using synchronous recognition');
       const [response] = await speechClient.recognize({
         audio: { uri: cloudStorageUri },
         config
+
       });
 
       transcription = response.results
-        .map(result => result.alternatives[0].transcript)
-        .join('\n');
+        .map((result) => result.alternatives[0].transcript)
+        .join("\n");
     } else {
+
       console.log('Using asynchronous recognition (long audio)');
       const [operation] = await speechClient.longRunningRecognize({
         audio: { uri: cloudStorageUri },
         config
+
       });
 
       const [response] = await operation.promise();
       transcription = response.results
-        .map(result => result.alternatives[0].transcript)
-        .join('\n');
+        .map((result) => result.alternatives[0].transcript)
+        .join("\n");
     }
 
     if (!transcription) {
+
       throw new Error('No transcription results returned');
     }
 
     const transcriptPath = await saveTranscriptToFile(transcription, videoPath, languageCode, customTitle);
     console.log(`Transcript saved at: ${transcriptPath}`);
+
 
     return {
       success: true,
@@ -197,21 +218,24 @@ export async function generateTranscription(videoPath, language = 'en-US', custo
       language: languageCode,
       transcriptName: path.basename(transcriptPath),
     };
-
   } catch (error) {
+
     console.error('Transcription error:', error);
     return {
       success: false,
       error: error.message,
       transcription: "Transcription error",
       transcriptPath: null
+
     };
   } finally {
     if (audioPath && fs.existsSync(audioPath)) {
       try {
         await fs.promises.unlink(audioPath);
       } catch (err) {
+
         console.error('Error cleaning temporary audio:', err);
+
       }
     }
   }
