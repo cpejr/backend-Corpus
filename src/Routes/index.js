@@ -15,6 +15,6 @@ routes.use("/category", CategoryRoutes);
 routes.use("/video", VideoRoutes);
 routes.use("/videofilter", VideoFilterRoutes);
 routes.use("/archive", ArchiveRoutes);
-routes.use("/", DownloadRoutes); 
+routes.use("/download", DownloadRoutes); 
 
 export default routes;
