@@ -6,7 +6,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 class DownloadController {
-  // Agora é um método de instância, não static, e usa await
   async downloadTranscript(req, res) {
     try {
       const filename = req.params.filename;
