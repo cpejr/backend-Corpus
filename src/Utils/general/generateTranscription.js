@@ -150,6 +150,7 @@ export async function generateTranscription(videoPath, language = "en-US", custo
       audioChannelCount: 1,
       enableWordConfidence: true,
       model: "default",
+      enableWordTimeOffsets: true,
     };
 
     const audioFileStats = fs.statSync(audioPath);

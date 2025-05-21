@@ -60,8 +60,8 @@ class ArchiveController {
     try {
       const { id, thumbFile, videoFile, name } = req.body;
 
-      await this.deleteArchives(id);
-      const newArchives = await this.createArchives({ thumbFile, videoFile, name });
+      await ArchivesModel.deleteArchives(id);
+      const newArchives = await ArchivesModel.createArchives({ thumbFile, videoFile, name });
 
       return newArchives;
     } catch (error) {
