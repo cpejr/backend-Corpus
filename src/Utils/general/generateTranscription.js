@@ -11,15 +11,14 @@ import PDFDocument from "pdfkit";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-//process.env.GOOGLE_APPLICATION_CREDENTIALS = path.resolve(__dirname, "google.json");
-const client = new SpeechClient({
+const speechClient = new SpeechClient({
   credentials: {
     client_email: process.env.GOOGLE_CLIENT_EMAIL,
     private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
   },
   projectId: process.env.GOOGLE_PROJECT_ID,
 });
-const storage = new Storage({
+const storageClient = new Storage({
   credentials: {
     client_email: process.env.GOOGLE_CLIENT_EMAIL,
     private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
@@ -101,7 +100,7 @@ async function saveTranscriptToFile(transcription, videoPath, languageCode, cust
 
   const safeTitle = customTitle
     ? customTitle.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
-    : "transcricao"; // Fallback se customTitle for null
+    : "transcricao";
 
   const transcriptPath = path.join(transcriptsDir, `${safeTitle}.pdf`);
 
