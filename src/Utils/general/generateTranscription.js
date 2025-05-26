@@ -7,6 +7,7 @@ import { dirname } from "path";
 import { SpeechClient } from "@google-cloud/speech";
 import { Storage } from "@google-cloud/storage";
 import PDFDocument from "pdfkit";
+import { convertSRTtoVTT } from "./convertSrtToVtt";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -236,8 +237,9 @@ export async function generateTranscription(videoPath, language = "en-US", custo
       customTitle
     );
     const srtPath = await saveSRTFile(subtitles, customTitle || "legenda");
-
+    const vttPath = srtPath.replace(/\.srt$/, ".vtt");
     console.log(`Legenda SRT salva em: ${srtPath}`);
+    convertSRTtoVTT(srtPath, vttPath);
 
     console.log(`Transcript saved at: ${transcriptPath}`);
 
