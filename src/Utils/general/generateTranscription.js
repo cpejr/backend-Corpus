@@ -122,6 +122,20 @@ async function saveTranscriptToFile(transcription, videoPath, languageCode, cust
     writeStream.on("error", reject);
   });
 }
+async function saveSRTFile(subtitles, title) {
+  const transcriptsDir = path.join(__dirname, "../../persistent_storage/transcripts");
+
+  if (!fs.existsSync(transcriptsDir)) {
+    fs.mkdirSync(transcriptsDir, { recursive: true });
+  }
+
+  const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
+  const srtPath = path.join(transcriptsDir, `${safeTitle}.srt`);
+
+  await fs.promises.writeFile(srtPath, subtitles.join("\n"), "utf8");
+
+  return srtPath;
+}
 
 export async function generateTranscription(videoPath, language = "en-US", customTitle = null) {
   let audioPath;
@@ -164,9 +178,40 @@ export async function generateTranscription(videoPath, language = "en-US", custo
         config,
       });
 
-      transcription = response.results
-        .map((result) => result.alternatives[0].transcript)
-        .join("\n");
+      transcription = "";
+      const subtitles = [];
+
+      let subtitleIndex = 1;
+
+      response.results.forEach((result) => {
+        const alternative = result.alternatives[0];
+        const words = alternative.words;
+
+        if (!words || words.length === 0) return;
+
+        // Quebra em blocos de 5 palavras (pode ajustar)
+        const chunkSize = 5;
+        for (let i = 0; i < words.length; i += chunkSize) {
+          const chunk = words.slice(i, i + chunkSize);
+          const text = chunk.map((w) => w.word).join(" ");
+
+          const start = chunk[0].startTime;
+          const end = chunk[chunk.length - 1].endTime;
+
+          const formatTime = (time) => {
+            const seconds = parseFloat(time.seconds || 0) + (time.nanos || 0) / 1e9;
+            const date = new Date(0);
+            date.setSeconds(seconds);
+            return date.toISOString().substr(11, 12).replace(".", ",");
+          };
+
+          subtitles.push(
+            `${subtitleIndex++}\n${formatTime(start)} --> ${formatTime(end)}\n${text}\n`
+          );
+
+          transcription += `${text} `;
+        }
+      });
     } else {
       console.log("Using asynchronous recognition (long audio)");
       const [operation] = await speechClient.longRunningRecognize({
@@ -190,13 +235,19 @@ export async function generateTranscription(videoPath, language = "en-US", custo
       languageCode,
       customTitle
     );
+    const srtPath = await saveSRTFile(subtitles, customTitle || "legenda");
+
+    console.log(`Legenda SRT salva em: ${srtPath}`);
+
     console.log(`Transcript saved at: ${transcriptPath}`);
 
     return {
       success: true,
-      transcription: transcription,
-      transcriptPath: transcriptPath,
+      transcription: transcription.trim(),
+      transcriptPath,
       transcriptURL: `/transcripts/${encodeURIComponent(path.basename(transcriptPath))}`,
+      srtPath,
+      srtURL: `/transcripts/${encodeURIComponent(path.basename(srtPath))}`,
       language: languageCode,
       transcriptName: path.basename(transcriptPath),
     };
