@@ -7,7 +7,7 @@ import { dirname } from "path";
 import { SpeechClient } from "@google-cloud/speech";
 import { Storage } from "@google-cloud/storage";
 import PDFDocument from "pdfkit";
-import { convertSRTtoVTT } from "./convertSrtToVtt";
+import { convertSRTtoVTT } from "./convertSrtToVtt.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -169,9 +169,8 @@ export async function generateTranscription(videoPath, language = "en-US", custo
 
     const audioFileStats = fs.statSync(audioPath);
     const isLongAudio = audioFileStats.size / (16000 * 2) > 60;
-
-    let transcription;
-
+    let transcription = "";
+    const subtitles = [];
     if (!isLongAudio) {
       console.log("Using synchronous recognition");
       const [response] = await speechClient.recognize({
@@ -180,7 +179,6 @@ export async function generateTranscription(videoPath, language = "en-US", custo
       });
 
       transcription = "";
-      const subtitles = [];
 
       let subtitleIndex = 1;
 
@@ -242,6 +240,7 @@ export async function generateTranscription(videoPath, language = "en-US", custo
     convertSRTtoVTT(srtPath, vttPath);
 
     console.log(`Transcript saved at: ${transcriptPath}`);
+    const vttURL = `/transcripts/${encodeURIComponent(path.basename(vttPath))}`;
 
     return {
       success: true,
@@ -250,6 +249,7 @@ export async function generateTranscription(videoPath, language = "en-US", custo
       transcriptURL: `/transcripts/${encodeURIComponent(path.basename(transcriptPath))}`,
       srtPath,
       srtURL: `/transcripts/${encodeURIComponent(path.basename(srtPath))}`,
+      vttURL,
       language: languageCode,
       transcriptName: path.basename(transcriptPath),
     };
