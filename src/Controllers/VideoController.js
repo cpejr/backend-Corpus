@@ -75,11 +75,11 @@ class VideosController {
         await fs.promises.unlink(videoPath);
         return res.status(500).json({ message: "Error generating thumbnail!" });
       }
-
+      const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
       const archivesID = await ArchivesController.createArchives({
         thumbFile: thumbFile,
         videoFile: videoFileData,
-        name: `${title}-${code}`,
+        name: safeTitle,
       });
 
       const transcription = await generateTranscription(videoPath, language, title);

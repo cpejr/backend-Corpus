@@ -92,15 +92,15 @@ async function uploadToBucket(filePath, bucketName) {
   }
 }
 
-async function saveTranscriptToFile(transcription, videoPath, languageCode, customTitle = null) {
+async function saveTranscriptToFile(transcription, videoPath, languageCode, title) {
   const transcriptsDir = path.join(__dirname, "../../persistent_storage/transcripts");
 
   if (!fs.existsSync(transcriptsDir)) {
     fs.mkdirSync(transcriptsDir, { recursive: true });
   }
 
-  const safeTitle = customTitle
-    ? customTitle.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
+  const safeTitle = title
+    ? title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
     : "transcricao";
 
   const transcriptPath = path.join(transcriptsDir, `${safeTitle}.pdf`);
@@ -138,13 +138,16 @@ async function saveSRTFile(subtitles, title) {
   return srtPath;
 }
 
-export async function generateTranscription(videoPath, language = "en-US", customTitle = null) {
+export async function generateTranscription(videoPath, language = "en-US", title) {
   let audioPath;
 
   try {
     if (!videoPath || !fs.existsSync(videoPath)) {
       throw new Error("Invalid video path");
     }
+    const safeTitle = title
+      ? title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
+      : "transcricao";
 
     const languageCode = normalizeLanguageCode(language);
     console.log(`Processing video in language: ${languageCode}`);
@@ -155,7 +158,6 @@ export async function generateTranscription(videoPath, language = "en-US", custo
     const cloudStorageUri = await uploadToBucket(audioPath, "api-transcription");
     console.log(`File uploaded to cloud storage: ${cloudStorageUri}`);
 
-    //Config Aqui? trocar para novo arquivo
     const config = {
       encoding: "FLAC",
       sampleRateHertz: 16000,
@@ -167,88 +169,72 @@ export async function generateTranscription(videoPath, language = "en-US", custo
       enableWordTimeOffsets: true,
     };
 
-    const audioFileStats = fs.statSync(audioPath);
-    const isLongAudio = audioFileStats.size / (16000 * 2) > 60;
-    let transcription = "";
-    const subtitles = [];
-    if (!isLongAudio) {
-      console.log("Using synchronous recognition");
-      const [response] = await speechClient.recognize({
-        audio: { uri: cloudStorageUri },
-        config,
-      });
+    console.log("Using asynchronous recognition (all audio durations)");
+    const [operation] = await speechClient.longRunningRecognize({
+      audio: { uri: cloudStorageUri },
+      config,
+    });
 
-      transcription = "";
+    const [response] = await operation.promise();
 
-      let subtitleIndex = 1;
-
-      response.results.forEach((result) => {
-        const alternative = result.alternatives[0];
-        const words = alternative.words;
-
-        if (!words || words.length === 0) return;
-
-        // Quebra em blocos de 5 palavras (pode ajustar)
-        const chunkSize = 5;
-        for (let i = 0; i < words.length; i += chunkSize) {
-          const chunk = words.slice(i, i + chunkSize);
-          const text = chunk.map((w) => w.word).join(" ");
-
-          const start = chunk[0].startTime;
-          const end = chunk[chunk.length - 1].endTime;
-
-          const formatTime = (time) => {
-            const seconds = parseFloat(time.seconds || 0) + (time.nanos || 0) / 1e9;
-            const date = new Date(0);
-            date.setSeconds(seconds);
-            return date.toISOString().substr(11, 12).replace(".", ",");
-          };
-
-          subtitles.push(
-            `${subtitleIndex++}\n${formatTime(start)} --> ${formatTime(end)}\n${text}\n`
-          );
-
-          transcription += `${text} `;
-        }
-      });
-    } else {
-      console.log("Using asynchronous recognition (long audio)");
-      const [operation] = await speechClient.longRunningRecognize({
-        audio: { uri: cloudStorageUri },
-        config,
-      });
-
-      const [response] = await operation.promise();
-      transcription = response.results
-        .map((result) => result.alternatives[0].transcript)
-        .join("\n");
+    if (!response.results || response.results.length === 0) {
+      throw new Error("No transcription results returned");
     }
 
-    if (!transcription) {
-      throw new Error("No transcription results returned");
+    let transcription = "";
+    const subtitles = [];
+    let subtitleIndex = 1;
+
+    for (const result of response.results) {
+      const alternative = result.alternatives[0];
+      const words = alternative.words;
+
+      if (!words || words.length === 0) continue;
+
+      const chunkSize = 5;
+      for (let i = 0; i < words.length; i += chunkSize) {
+        const chunk = words.slice(i, i + chunkSize);
+        const text = chunk.map((w) => w.word).join(" ");
+
+        const start = chunk[0].startTime;
+        const end = chunk[chunk.length - 1].endTime;
+
+        const formatTime = (time) => {
+          const seconds = parseFloat(time.seconds || 0) + (time.nanos || 0) / 1e9;
+          const date = new Date(0);
+          date.setSeconds(seconds);
+          return date.toISOString().substr(11, 12).replace(".", ",");
+        };
+
+        subtitles.push(
+          `${subtitleIndex++}\n${formatTime(start)} --> ${formatTime(end)}\n${text}\n`
+        );
+
+        transcription += `${text} `;
+      }
     }
 
     const transcriptPath = await saveTranscriptToFile(
       transcription,
       videoPath,
       languageCode,
-      customTitle
+      title
     );
-    const srtPath = await saveSRTFile(subtitles, customTitle || "legenda");
-    const vttPath = srtPath.replace(/\.srt$/, ".vtt");
+    const srtPath = await saveSRTFile(subtitles, safeTitle);
+    const vttPath = path.join(path.dirname(srtPath), `${safeTitle}.vtt`);
     console.log(`Legenda SRT salva em: ${srtPath}`);
     convertSRTtoVTT(srtPath, vttPath);
 
     console.log(`Transcript saved at: ${transcriptPath}`);
-    const vttURL = `/transcripts/${encodeURIComponent(path.basename(vttPath))}`;
+    const vttURL = `/transcripts/${safeTitle}.vtt`;
 
     return {
       success: true,
       transcription: transcription.trim(),
       transcriptPath,
-      transcriptURL: `/transcripts/${encodeURIComponent(path.basename(transcriptPath))}`,
+      transcriptURL: `/transcripts/${path.basename(transcriptPath)}`,
       srtPath,
-      srtURL: `/transcripts/${encodeURIComponent(path.basename(srtPath))}`,
+      srtURL: `/transcripts/${path.basename(srtPath)}`,
       vttURL,
       language: languageCode,
       transcriptName: path.basename(transcriptPath),

@@ -22,11 +22,18 @@ class DownloadController {
         return res.status(404).json({ error: "File not found" });
       }
 
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${encodeURIComponent(safeTitle)}"`
-      );
+      if (filename.endsWith(".vtt")) {
+        res.setHeader("Content-Type", "text/vtt; charset=utf-8");
+        // Não envie Content-Disposition para VTT!
+      } else if (filename.endsWith(".srt")) {
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      } else if (filename.endsWith(".pdf")) {
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${encodeURIComponent(safeTitle)}"`
+        );
+      }
 
       const fileStream = fs.createReadStream(transcriptPath);
 

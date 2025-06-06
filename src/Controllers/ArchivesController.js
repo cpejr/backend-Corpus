@@ -25,10 +25,15 @@ class ArchiveController {
       if (!archives) {
         throw new Error(`Archive with ID ${id} not found`);
       }
-
+      const safeTitle = archives.name
+        ? archives.name.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
+        : "transcricao";
+      const vttFileName = `${safeTitle}.vtt`;
+      const vttURL = `/transcripts/${vttFileName}`;
+      console.log("VTT URL do Controller:", vttURL);
       const videoFile = await getArchive(archives.videoKey);
       const thumbFile = await getArchive(archives.thumbKey);
-      const data = { videoFile, thumbFile };
+      const data = { videoFile, thumbFile, vttURL };
       return res.status(200).json(data);
     } catch (error) {
       return res
