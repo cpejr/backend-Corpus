@@ -6,48 +6,74 @@ class VideosController {
  
   async Create(req, res) {
     try {
-      const { title, language, videoFile, code } = req.body;
-      const foundCode = await VideosModel.findOne({ code });
-      if (foundCode) {
-        return res.status(409).json({ message: "Código já cadastrado!" });
+
+
+      console.log('Starting video creation process...');
+
+      const { 
+        title, 
+        language, 
+        videoFile, 
+        code, 
+        date, 
+        duration,
+        country,
+        totalParticipants,
+        responsibles,
+        context,
+        ShortDescription
+      } = req.body;
+
+      const requiredFields = {
+        title: 'Title',
+        language: 'Language',
+        videoFile: 'Video file',
+        code: 'Code',
+        country: 'Country',
+        totalParticipants: 'Total participants',
+        responsibles: 'Responsibles',
+        context: 'Context',
+        ShortDescription: 'Short description'
+      };
+
+      const missingFields = Object.entries(requiredFields)
+        .filter(([field]) => !req.body[field])
+        .map(([_, name]) => name);
+
+      if (missingFields.length > 0) {
+        return res.status(400).json({ 
+          message: "Missing required fields!",
+          missingFields
+        });
       }
 
-      if (!videoFile) {
-        return res.status(400).json({ message: "Arquivo de vídeo não fornecido!" });
+
+      const foundCode = await VideosModel.findOne({ code });
+      if (foundCode) {
+        return res.status(409).json({ message: "Code already registered!" });
       }
 
       const regex = /^data:(video\/)(\w+)(;base64,)(.+)$/;
       const matches = videoFile.match(regex);
-
-      let dataType;
-      let videoFileData;
-      
-      if (matches) {
-        dataType = matches[2];
-        videoFileData = matches[4];
-      } else {
-        return res.status(409).json({ message: 'A string Base64 não está no formato esperado.'});
+      if (!matches) {
+        return res.status(400).json({ message: 'Invalid video format!' });
       }
 
+      const dataType = matches[2];
+      const videoFileData = matches[4];
       const videoBuffer = Buffer.from(videoFileData, 'base64');
-
       if (videoBuffer.length === 0) {
-        return res.status(400).json({ message: "Arquivo de vídeo vazio/inválido!" });
+        return res.status(400).json({ message: "Empty video file!" });
       }
-      const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
-      const videoStream = fs.createWriteStream(videoPath);
-      
-      videoStream.write(videoBuffer);
-      videoStream.end();
 
-      videoStream.on('error', (err) => {
-        return res.status(500).json({ message: "'Erro ao salvar o arquivo:'", error: err });
-      });
+      const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
+      await fs.promises.writeFile(videoPath, videoBuffer);
+      console.log('Temporary video saved at:', videoPath);
 
       const thumbFile = await generateThumb(videoPath);
-
       if (!thumbFile) {
-        return res.status(500).json({ message: "Erro ao gerar a thumbnail!" });
+        await fs.promises.unlink(videoPath);
+        return res.status(500).json({ message: "Error generating thumbnail!" });
       }
 
       const archivesID = await ArchivesController.createArchives({
@@ -56,25 +82,74 @@ class VideosController {
         name: `${title}-${code}`,
       });
 
-      let transcription = "placegolder"
-      await fs.promises.unlink(videoPath);
-      
-      let newVideo = req.body;
-      delete newVideo.videoFile;
 
-      newVideo = { ...newVideo, archives: archivesID, transcription: transcription ,duration:convertToMinutes(req.body.duration) };
-      delete newVideo.description
-      delete newVideo.responsible
+      const transcription = await generateTranscription(videoPath, language, title);
+      console.log('Transcription result:', transcription ? 'Success' : 'Failure');
 
-      try {
-        const video = await VideosModel.create(newVideo);
-        return res.status(200).json(video);
-      } catch(err) {
-        console.log(err)
-      }
+      await fs.promises.unlink(videoPath).catch(console.error);
+
+      const videoData = {
+        title,
+        language,
+        code,
+        archives: archivesID,
+        transcription: transcription.transcription || "Transcription not available", 
+        duration: convertToMinutes(duration || 0),
+        date: date || new Date(),
+        country,
+        totalParticipants: Number(totalParticipants),
+        responsibles,
+        context,
+        ShortDescription
+      };
+
+      const video = await VideosModel.create(videoData);
+      console.log('Video successfully created:', video._id);
+
+      return res.status(201).json({
+        message: "Video successfully created",
+        video,
+        thumbURL: thumbFile,
+        transcription: transcription.transcription || "Transcription not available",
+        transcriptURL: transcription.transcriptURL
+      });
 
     } catch (error) {
-      res.status(500).json({ message: "Erro no servidor", error: error.message });
+      console.error('Server error:', {
+        message: error.message,
+        stack: error.stack,
+        body: req.body
+      });
+      return res.status(500).json({ 
+        message: "Server error", 
+        error: error.message,
+        details: error.errors 
+      });
+    }
+  }
+
+
+  async DownloadVideo(req, res) {
+    try {
+      const { id } = req.params;
+      const video = await VideosModel.findById(id);
+
+      if (!video || !video.archives || !video.archives.videoFile) {
+        return res.status(404).json({ message: "Video not found" });
+      }
+
+      const base64 = video.archives.videoFile;
+      const buffer = Buffer.from(base64, 'base64');
+
+      res.set({
+        'Content-Type': 'video/mp4',
+        'Content-Disposition': `attachment; filename="${video.title}.mp4"`,
+      });
+
+      return res.send(buffer);
+    } catch (error) {
+      console.error("Error downloading video:", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   }
 
@@ -82,6 +157,7 @@ class VideosController {
 
   async GetVideo(req, res) {
     try {
+
       const video = await VideosModel.find()
         .populate("language")  
         .populate("country"); 
@@ -89,6 +165,7 @@ class VideosController {
       return res.status(200).json(video);  
     } catch (error) {
       return res.status(500).json({ message: "Not found", error: error.message });
+
     }
   }
 
@@ -97,6 +174,7 @@ class VideosController {
   
   async GetVideoByParameters(req, res) {
     try {
+
       const { totalParticipants, dates, duration, country, language } = req.query.filters || {};  
       let filter = {};
 
@@ -138,7 +216,13 @@ class VideosController {
 
       if (duration) {
         filter.duration = { $gte: Number(duration) };
+
       }
+      if (country) filter.country = country;
+      if (language) filter.language = language;
+      if (dates) filter.date = { $gte: new Date(dates) };
+      if (duration) filter.duration = { $gte: Number(duration) };
+
 
     
       console.log('Filtro aplicado:', filter);
@@ -148,21 +232,33 @@ class VideosController {
         .populate('country')   
         .populate('language'); 
 
+
       return res.status(200).json(videos);
+
     } catch (error) {
-      console.log(error);
-      res.status(500).json({ message: "Not found", error: error.message });
+      console.error('Error filtering videos:', error);
+      return res.status(500).json({ message: "Error filtering videos" });
     }
   }
 
-  
+
   async UpdateVideo(req, res) {
     try {
       const { id } = req.params;
-      const video = await VideosModel.findByIdAndUpdate(id, req.body, { new: true });
+      const video = await VideosModel.findByIdAndUpdate(
+        id, 
+        req.body, 
+        { new: true, runValidators: true }
+      ).populate('archives');
+      
+      if (!video) {
+        return res.status(404).json({ message: "Video not found" });
+      }
+      
       return res.status(200).json(video);
     } catch (error) {
-      res.status(500).json({ message: "Not found", error: error.message });
+      console.error('Error updating video:', error);
+      return res.status(500).json({ message: "Error updating video" });
     }
   }
 
@@ -170,14 +266,24 @@ class VideosController {
     try {
       const { id } = req.params;
       const video = await VideosModel.findById(id);
-      console.log(video.archives._id);
-      await ArchivesController.deleteArchives(video.archives?._id);
+
+      
+      if (!video) {
+        return res.status(404).json({ message: "Video not found" });
+      }
+
+      if (video.archives) {
+        await ArchivesController.deleteArchives(video.archives._id);
+      }
+
 
       await VideosModel.findByIdAndDelete(id);
+      return res.status(200).json({ message: "Video successfully deleted!" });
 
-      return res.status(200).json({ mensagem: "Vídeo deletado com sucesso!" });
+
     } catch (error) {
-      res.status(500).json({ message: "Forbidden route", error: error.message });
+      console.error('Error deleting video:', error);
+      return res.status(500).json({ message: "Error deleting video" });
     }
   }
 }
