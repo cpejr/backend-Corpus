@@ -1,6 +1,15 @@
 import VideosModel from "../Models/VideosModel.js";
+
+import { generateThumb } from "../Utils/general/generateThumb.js";
+import { generateTranscription } from "../Utils/general/generateTranscription.js";
+import fs from "fs";
+import path from "path";
+import ArchivesController from "./ArchivesController.js";
+import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
+
 import CountryModel from "../Models/CountryModel.js";  
 import LanguageModel from "../Models/LanguageModel.js"; 
+
 
 class VideosController {
  
@@ -153,8 +162,6 @@ class VideosController {
     }
   }
 
-
-
   async GetVideo(req, res) {
     try {
 
@@ -169,77 +176,80 @@ class VideosController {
     }
   }
 
-
-
-  
   async GetVideoByParameters(req, res) {
     try {
+        const { totalParticipants, dates, duration, country, language } = req.query;  
+        let filter = {};
 
-      const { totalParticipants, dates, duration, country, language } = req.query.filters || {};  
-      let filter = {};
+        
+        if (totalParticipants) {
+            if (totalParticipants.min == 10) {
+                filter.totalParticipants = { $gte: Number(11) };
+            } else {
+                filter.totalParticipants = {
+                    $gte: Number(totalParticipants.min),
+                    $lte: Number(totalParticipants.max),
+                };
+            }
 
-     
-      if (totalParticipants) {
-        if (totalParticipants.min == 10) {
-          filter.totalParticipants = { $gte: Number(11) };
-        } else {
-          filter.totalParticipants = {
-            $gte: Number(totalParticipants.min),
-            $lte: Number(totalParticipants.max),
-          };
         }
-      }
 
-      
-      if (country) {
-        const countryDoc = await CountryModel.findOne({ name: { $regex: new RegExp(country, "i") } });  
-        if (countryDoc) {
-          filter.country = countryDoc._id; 
-        } else {
-          return res.status(404).json({ message: "País não encontrado." });
+
+        
+        if (country && Array.isArray(country)) {  
+            const countries = await CountryModel.find({
+                name: { $in: country.map(c => new RegExp(c, "i")) }  
+            });
+            if (countries.length > 0) {
+                filter.country = { $all: countries.map(c => c._id) };  
+            } else {
+                return res.status(404).json({ message: "Países não encontrados." });
+            }
+
         }
-      }
 
-      
-      if (language) {
-        const languageDoc = await LanguageModel.findOne({ name: { $regex: new RegExp(language, "i") } });  
-        if (languageDoc) {
-          filter.language = languageDoc._id;  
-        } else {
-          return res.status(404).json({ message: "Linguagem não encontrada." });
+
+        
+        if (language && Array.isArray(language)) {  
+            const languages = await LanguageModel.find({
+                name: { $in: language.map(l => new RegExp(l, "i")) }  
+            });
+            if (languages.length > 0) {
+                filter.language = { $all: languages.map(l => l._id) };  
+            } else {
+                return res.status(404).json({ message: "Idiomas não encontrados." });
+            }
+
         }
-      }
 
-      if (dates) {
-        filter.date = { $gte: new Date(dates) };
-      }
-
-      if (duration) {
-        filter.duration = { $gte: Number(duration) };
-
-      }
-      if (country) filter.country = country;
-      if (language) filter.language = language;
-      if (dates) filter.date = { $gte: new Date(dates) };
-      if (duration) filter.duration = { $gte: Number(duration) };
+        if (dates) {
+            filter.date = { $gte: new Date(dates) };
+        }
 
 
-    
-      console.log('Filtro aplicado:', filter);
+        
+        if (duration) {
+            filter.duration = { $gte: Number(duration) };
+        }
 
-   
-      const videos = await VideosModel.find(filter)
-        .populate('country')   
-        .populate('language'); 
+        console.log("Filtro construído:", JSON.stringify(filter, null, 2));
+
+        const videos = await VideosModel.find(filter)
+            .populate('country')   
+            .populate('language'); 
 
 
-      return res.status(200).json(videos);
+          console.log("aqui estao seus videos")
+          console.log(videos) ;
 
+        return res.status(200).json(videos);
+        
     } catch (error) {
-      console.error('Error filtering videos:', error);
-      return res.status(500).json({ message: "Error filtering videos" });
+        console.log(error);
+        res.status(500).json({ message: "Not found", error: error.message });
+
     }
-  }
+
 
 
   async UpdateVideo(req, res) {
@@ -267,6 +277,7 @@ class VideosController {
       const { id } = req.params;
       const video = await VideosModel.findById(id);
 
+
       
       if (!video) {
         return res.status(404).json({ message: "Video not found" });
@@ -275,6 +286,7 @@ class VideosController {
       if (video.archives) {
         await ArchivesController.deleteArchives(video.archives._id);
       }
+
 
 
       await VideosModel.findByIdAndDelete(id);
