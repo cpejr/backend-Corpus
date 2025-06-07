@@ -79,11 +79,11 @@ class VideosController {
         await fs.promises.unlink(videoPath);
         return res.status(500).json({ message: "Error generating thumbnail!" });
       }
-
+      const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
       const archivesID = await ArchivesController.createArchives({
         thumbFile: thumbFile,
         videoFile: videoFileData,
-        name: `${title}-${code}`,
+        name: safeTitle,
       });
 
       const transcription = await generateTranscription(videoPath, language, title);
@@ -97,6 +97,11 @@ class VideosController {
         code,
         archives: archivesID,
         transcription: transcription.transcription || "Transcription not available",
+
+        transcriptURL: transcription.transcriptURL,
+        srtURL: transcription.srtURL,
+
+
         duration: convertToMinutes(duration || 0),
         date: date || new Date(),
         country,
@@ -156,11 +161,13 @@ class VideosController {
 
   async GetVideo(req, res) {
     try {
+
       const video = await VideosModel.find().populate("language").populate("country");
 
       return res.status(200).json(video);
     } catch (error) {
       return res.status(500).json({ message: "Not found", error: error.message });
+
     }
   }
 
@@ -170,6 +177,7 @@ class VideosController {
       let filter = {};
 
       if (totalParticipants) {
+
         if (totalParticipants.min == 10) {
           filter.totalParticipants = { $gte: Number(11) };
         } else {
@@ -178,7 +186,9 @@ class VideosController {
             $lte: Number(totalParticipants.max),
           };
         }
+
       }
+
 
       if (country && Array.isArray(country)) {
         const countries = await CountryModel.find({
@@ -221,6 +231,7 @@ class VideosController {
     } catch (error) {
       console.log(error);
       res.status(500).json({ message: "Not found", error: error.message });
+
     }
   }
 
