@@ -16,4 +16,5 @@ VideoRoutes.put("/:id", VideoController.UpdateVideo);
 VideoRoutes.delete("/:id", VideoController.Destroy);
 VideoRoutes.get("/:data", VideoController.GetVideoByParameters);
 
+
 export default VideoRoutes;

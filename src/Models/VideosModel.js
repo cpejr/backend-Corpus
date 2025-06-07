@@ -42,12 +42,12 @@ const VideosSchema = new Schema(
     },
     country: [{
       type: Schema.Types.ObjectId,
-      ref: "Country", // referencia para a collection de países
+      ref: "Country",
       required: true,
     }],
     language: [{
       type: Schema.Types.ObjectId,
-      ref: "Language", // referencia para a collection de línguas
+      ref: "Language", 
       required: true,
     }],
     duration: {

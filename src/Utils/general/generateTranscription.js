@@ -1,59 +1,220 @@
-import ffmpeg from 'fluent-ffmpeg';
-import ffmpegStatic from 'ffmpeg-static';
-import { openai } from '../../Config/OpenAI.js';
-import fs from 'fs';
-import path from 'path';
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegStatic from "ffmpeg-static";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+import { SpeechClient } from "@google-cloud/speech";
+import { Storage } from "@google-cloud/storage";
+import PDFDocument from "pdfkit";
 
-export async function extractAudio(videoPath) {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const speechClient = new SpeechClient({
+  credentials: {
+    client_email: process.env.GOOGLE_CLIENT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  },
+  projectId: process.env.GOOGLE_PROJECT_ID,
+});
+const storageClient = new Storage({
+  credentials: {
+    client_email: process.env.GOOGLE_CLIENT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  },
+  projectId: process.env.GOOGLE_PROJECT_ID,
+});
+
+const languageMap = {
+  portugues: "pt-BR",
+  pt: "pt-BR",
+  "pt-br": "pt-BR",
+  ingles: "en-US",
+  inglês: "en-US",
+  english: "en-US",
+  espanhol: "es-ES",
+  español: "es-ES",
+  frances: "fr-FR",
+  francés: "fr-FR",
+  fr: "fr-FR",
+  alemao: "de-DE",
+  alemán: "de-DE",
+  italiano: "it-IT",
+  italian: "it-IT",
+};
+
+function normalizeLanguageCode(language) {
+  if (!language) return "en-US";
+
+  const normalized = language
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "");
+
+  return languageMap[normalized] || "en-US";
+}
+
+async function extractAudio(videoPath, outputFormat = "flac") {
+  if (!fs.existsSync(videoPath)) {
+    throw new Error(`Video file not found: ${videoPath}`);
+  }
+
   return new Promise((resolve, reject) => {
-      const absoluteVideoPath = path.resolve(videoPath);
-      const audioPath = absoluteVideoPath.replace(/\.[^/.]+$/, ".mp3"); 
+    const absoluteVideoPath = path.resolve(videoPath);
+    const audioPath = absoluteVideoPath.replace(/\.[^/.]+$/, `.${outputFormat}`);
 
-      ffmpeg(absoluteVideoPath)
-          .setFfmpegPath(ffmpegStatic)
-          .output(audioPath)
-          .noVideo()
-          .audioCodec('libmp3lame')
-          .audioBitrate('128k')
-          .on('end', () => {
-              resolve(audioPath);
-          })
-          .on('error', (err) => {
-              reject(err);
-          })
-          .run();
+    ffmpeg(absoluteVideoPath)
+      .setFfmpegPath(ffmpegStatic)
+      .output(audioPath)
+      .noVideo()
+      .audioCodec("flac")
+      .audioChannels(1)
+      .audioFrequency(16000)
+      .on("end", () => resolve(audioPath))
+      .on("error", reject)
+      .run();
   });
 }
-export async function generateTranscription(videoPath, language) {
-    try {
 
-        const languageMap = {
-            'português': 'pt',
-            'ingles': 'en',
-            'inglês': 'en',
-            'frances': 'fr',
-            'francês': 'fr',
-            'alemao': 'de',
-            'alemão': 'de'
-        };
-        const normalizedLanguage = language.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+async function uploadToBucket(filePath, bucketName) {
+  try {
+    const destination = path.basename(filePath);
+    await storageClient.bucket(bucketName).upload(filePath, {
+      destination,
+      resumable: false,
+    });
+    return `gs://${bucketName}/${destination}`;
+  } catch (error) {
+    throw new Error(`Bucket upload failed: ${error.message}`);
+  }
+}
 
-        const audioPath = await extractAudio(videoPath);
-        const languageCode = languageMap[normalizedLanguage] || 'en'; 
-        
-        const transcription = await openai.audio.transcriptions.create({
-            file: fs.createReadStream(audioPath),
-            model: 'whisper-1',
-            language: languageCode, 
-            response_format: 'text',
-            temperature: 0.2,  
-        });
-        await fs.promises.unlink(audioPath);
-        console.log("Transcrição concluída");
-        return transcription;
-    } catch (error) {
-        
-        console.log(error);
-        return null;
+async function saveTranscriptToFile(transcription, videoPath, languageCode, customTitle = null) {
+  const transcriptsDir = path.join(__dirname, "../../persistent_storage/transcripts");
+
+  if (!fs.existsSync(transcriptsDir)) {
+    fs.mkdirSync(transcriptsDir, { recursive: true });
+  }
+
+  const safeTitle = customTitle
+    ? customTitle.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
+    : "transcricao";
+
+  const transcriptPath = path.join(transcriptsDir, `${safeTitle}.pdf`);
+
+  const doc = new PDFDocument({ margin: 50 });
+  const writeStream = fs.createWriteStream(transcriptPath);
+  doc.pipe(writeStream);
+
+  doc.fontSize(16).text(`Transcrição: ${safeTitle}`, { align: "left" });
+  doc.moveDown();
+  doc.fontSize(12).text(`Gerada em: ${new Date().toLocaleString()}`);
+  doc.text(`Idioma: ${languageCode}`);
+  doc.moveDown().text("----------------------------------------");
+  doc.moveDown().fontSize(12).text(transcription, { align: "left" });
+
+  doc.end();
+
+  return new Promise((resolve, reject) => {
+    writeStream.on("finish", () => resolve(transcriptPath));
+    writeStream.on("error", reject);
+  });
+}
+
+export async function generateTranscription(videoPath, language = "en-US", customTitle = null) {
+  let audioPath;
+
+  try {
+    if (!videoPath || !fs.existsSync(videoPath)) {
+      throw new Error("Invalid video path");
     }
+
+    const languageCode = normalizeLanguageCode(language);
+    console.log(`Processing video in language: ${languageCode}`);
+
+    audioPath = await extractAudio(videoPath);
+    console.log(`Audio extracted: ${audioPath}`);
+
+    const cloudStorageUri = await uploadToBucket(audioPath, "api-transcription");
+    console.log(`File uploaded to cloud storage: ${cloudStorageUri}`);
+
+    //Config Aqui? trocar para novo arquivo
+    const config = {
+      encoding: "FLAC",
+      sampleRateHertz: 16000,
+      languageCode: languageCode,
+      enableAutomaticPunctuation: true,
+      audioChannelCount: 1,
+      enableWordConfidence: true,
+      model: "default",
+      enableWordTimeOffsets: true,
+    };
+
+    const audioFileStats = fs.statSync(audioPath);
+    const isLongAudio = audioFileStats.size / (16000 * 2) > 60;
+
+    let transcription;
+
+    if (!isLongAudio) {
+      console.log("Using synchronous recognition");
+      const [response] = await speechClient.recognize({
+        audio: { uri: cloudStorageUri },
+        config,
+      });
+
+      transcription = response.results
+        .map((result) => result.alternatives[0].transcript)
+        .join("\n");
+    } else {
+      console.log("Using asynchronous recognition (long audio)");
+      const [operation] = await speechClient.longRunningRecognize({
+        audio: { uri: cloudStorageUri },
+        config,
+      });
+
+      const [response] = await operation.promise();
+      transcription = response.results
+        .map((result) => result.alternatives[0].transcript)
+        .join("\n");
+    }
+
+    if (!transcription) {
+      throw new Error("No transcription results returned");
+    }
+
+    const transcriptPath = await saveTranscriptToFile(
+      transcription,
+      videoPath,
+      languageCode,
+      customTitle
+    );
+    console.log(`Transcript saved at: ${transcriptPath}`);
+
+    return {
+      success: true,
+      transcription: transcription,
+      transcriptPath: transcriptPath,
+      transcriptURL: `/transcripts/${encodeURIComponent(path.basename(transcriptPath))}`,
+      language: languageCode,
+      transcriptName: path.basename(transcriptPath),
+    };
+  } catch (error) {
+    console.error("Transcription error:", error);
+    return {
+      success: false,
+      error: error.message,
+      transcription: "Transcription error",
+      transcriptPath: null,
+    };
+  } finally {
+    if (audioPath && fs.existsSync(audioPath)) {
+      try {
+        await fs.promises.unlink(audioPath);
+      } catch (err) {
+        console.error("Error cleaning temporary audio:", err);
+      }
+    }
+  }
 }
