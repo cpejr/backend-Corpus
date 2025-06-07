@@ -1,14 +1,13 @@
 import VideosModel from "../Models/VideosModel.js";
-import { generateThumb } from "../Utils/general/generateThumb.js";
-import { generateTranscription } from "../Utils/general/generateTranscription.js";
-import fs from "fs";
-import path from "path";
-import ArchivesController from "./ArchivesController.js";
-import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
+import CountryModel from "../Models/CountryModel.js";  
+import LanguageModel from "../Models/LanguageModel.js"; 
 
 class VideosController {
+ 
   async Create(req, res) {
     try {
+
+
       console.log('Starting video creation process...');
 
       const { 
@@ -48,6 +47,7 @@ class VideosController {
         });
       }
 
+
       const foundCode = await VideosModel.findOne({ code });
       if (foundCode) {
         return res.status(409).json({ message: "Code already registered!" });
@@ -81,6 +81,7 @@ class VideosController {
         videoFile: videoFileData,
         name: `${title}-${code}`,
       });
+
 
       const transcription = await generateTranscription(videoPath, language, title);
       console.log('Transcription result:', transcription ? 'Success' : 'Failure');
@@ -127,6 +128,7 @@ class VideosController {
     }
   }
 
+
   async DownloadVideo(req, res) {
     try {
       const { id } = req.params;
@@ -151,32 +153,86 @@ class VideosController {
     }
   }
 
+
+
   async GetVideo(req, res) {
     try {
-      const videos = await VideosModel.find().populate('archives');
-      return res.status(200).json(videos);
+
+      const video = await VideosModel.find()
+        .populate("language")  
+        .populate("country"); 
+
+      return res.status(200).json(video);  
     } catch (error) {
-      console.error('Error fetching videos:', error);
-      return res.status(500).json({ message: "Error fetching videos" });
+      return res.status(500).json({ message: "Not found", error: error.message });
+
     }
   }
 
+
+
+  
   async GetVideoByParameters(req, res) {
     try {
-      let filter = {};
-      const { totalParticipants, dates, duration, country, language } = req.query.filters || {};
 
+      const { totalParticipants, dates, duration, country, language } = req.query.filters || {};  
+      let filter = {};
+
+     
       if (totalParticipants) {
-        filter.totalParticipants = totalParticipants.min == 10 
-          ? { $gte: 11 } 
-          : { $gte: Number(totalParticipants.min), $lte: Number(totalParticipants.max) };
+        if (totalParticipants.min == 10) {
+          filter.totalParticipants = { $gte: Number(11) };
+        } else {
+          filter.totalParticipants = {
+            $gte: Number(totalParticipants.min),
+            $lte: Number(totalParticipants.max),
+          };
+        }
+      }
+
+      
+      if (country) {
+        const countryDoc = await CountryModel.findOne({ name: { $regex: new RegExp(country, "i") } });  
+        if (countryDoc) {
+          filter.country = countryDoc._id; 
+        } else {
+          return res.status(404).json({ message: "País não encontrado." });
+        }
+      }
+
+      
+      if (language) {
+        const languageDoc = await LanguageModel.findOne({ name: { $regex: new RegExp(language, "i") } });  
+        if (languageDoc) {
+          filter.language = languageDoc._id;  
+        } else {
+          return res.status(404).json({ message: "Linguagem não encontrada." });
+        }
+      }
+
+      if (dates) {
+        filter.date = { $gte: new Date(dates) };
+      }
+
+      if (duration) {
+        filter.duration = { $gte: Number(duration) };
+
       }
       if (country) filter.country = country;
       if (language) filter.language = language;
       if (dates) filter.date = { $gte: new Date(dates) };
       if (duration) filter.duration = { $gte: Number(duration) };
 
-      const videos = await VideosModel.find(filter).populate('archives');
+
+    
+      console.log('Filtro aplicado:', filter);
+
+   
+      const videos = await VideosModel.find(filter)
+        .populate('country')   
+        .populate('language'); 
+
+
       return res.status(200).json(videos);
 
     } catch (error) {
@@ -184,6 +240,7 @@ class VideosController {
       return res.status(500).json({ message: "Error filtering videos" });
     }
   }
+
 
   async UpdateVideo(req, res) {
     try {
@@ -209,6 +266,7 @@ class VideosController {
     try {
       const { id } = req.params;
       const video = await VideosModel.findById(id);
+
       
       if (!video) {
         return res.status(404).json({ message: "Video not found" });
@@ -218,8 +276,10 @@ class VideosController {
         await ArchivesController.deleteArchives(video.archives._id);
       }
 
+
       await VideosModel.findByIdAndDelete(id);
       return res.status(200).json({ message: "Video successfully deleted!" });
+
 
     } catch (error) {
       console.error('Error deleting video:', error);
