@@ -1,10 +1,14 @@
 import VideosModel from "../Models/VideosModel.js";
+
 import { generateThumb } from "../Utils/general/generateThumb.js";
 import { generateTranscription } from "../Utils/general/generateTranscription.js";
 import fs from "fs";
 import path from "path";
 import ArchivesController from "./ArchivesController.js";
 import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
+
+import CountryModel from "../Models/CountryModel.js";
+import LanguageModel from "../Models/LanguageModel.js";
 
 class VideosController {
   async Create(req, res) {
@@ -93,8 +97,10 @@ class VideosController {
         code,
         archives: archivesID,
         transcription: transcription.transcription || "Transcription not available",
+
         transcriptURL: transcription.transcriptURL,
         srtURL: transcription.srtURL,
+
 
         duration: convertToMinutes(duration || 0),
         date: date || new Date(),
@@ -155,35 +161,77 @@ class VideosController {
 
   async GetVideo(req, res) {
     try {
-      const videos = await VideosModel.find().populate("archives");
-      return res.status(200).json(videos);
+
+      const video = await VideosModel.find().populate("language").populate("country");
+
+      return res.status(200).json(video);
     } catch (error) {
-      console.error("Error fetching videos:", error);
-      return res.status(500).json({ message: "Error fetching videos" });
+      return res.status(500).json({ message: "Not found", error: error.message });
+
     }
   }
 
   async GetVideoByParameters(req, res) {
     try {
+      const { totalParticipants, dates, duration, country, language } = req.query;
       let filter = {};
-      const { totalParticipants, dates, duration, country, language } = req.query.filters || {};
 
       if (totalParticipants) {
-        filter.totalParticipants =
-          totalParticipants.min == 10
-            ? { $gte: 11 }
-            : { $gte: Number(totalParticipants.min), $lte: Number(totalParticipants.max) };
-      }
-      if (country) filter.country = country;
-      if (language) filter.language = language;
-      if (dates) filter.date = { $gte: new Date(dates) };
-      if (duration) filter.duration = { $gte: Number(duration) };
 
-      const videos = await VideosModel.find(filter).populate("archives");
+        if (totalParticipants.min == 10) {
+          filter.totalParticipants = { $gte: Number(11) };
+        } else {
+          filter.totalParticipants = {
+            $gte: Number(totalParticipants.min),
+            $lte: Number(totalParticipants.max),
+          };
+        }
+
+      }
+
+
+      if (country && Array.isArray(country)) {
+        const countries = await CountryModel.find({
+          name: { $in: country.map((c) => new RegExp(c, "i")) },
+        });
+        if (countries.length > 0) {
+          filter.country = { $all: countries.map((c) => c._id) };
+        } else {
+          return res.status(404).json({ message: "Países não encontrados." });
+        }
+      }
+
+      if (language && Array.isArray(language)) {
+        const languages = await LanguageModel.find({
+          name: { $in: language.map((l) => new RegExp(l, "i")) },
+        });
+        if (languages.length > 0) {
+          filter.language = { $all: languages.map((l) => l._id) };
+        } else {
+          return res.status(404).json({ message: "Idiomas não encontrados." });
+        }
+      }
+
+      if (dates) {
+        filter.date = { $gte: new Date(dates) };
+      }
+
+      if (duration) {
+        filter.duration = { $gte: Number(duration) };
+      }
+
+      console.log("Filtro construído:", JSON.stringify(filter, null, 2));
+
+      const videos = await VideosModel.find(filter).populate("country").populate("language");
+
+      console.log("aqui estao seus videos");
+      console.log(videos);
+
       return res.status(200).json(videos);
     } catch (error) {
-      console.error("Error filtering videos:", error);
-      return res.status(500).json({ message: "Error filtering videos" });
+      console.log(error);
+      res.status(500).json({ message: "Not found", error: error.message });
+
     }
   }
 
