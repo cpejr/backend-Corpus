@@ -17,7 +17,7 @@ class VideosController {
         language,
         videoFile,
         code,
-        date,
+        birthday,
         duration,
         country,
         totalParticipants,
@@ -98,7 +98,7 @@ class VideosController {
         srtURL: transcription.srtURL,
 
         duration: convertToMinutes(duration || 0),
-        date: date || new Date(),
+        birthday: birthday || new birthday(),
         country,
         totalParticipants: Number(totalParticipants),
         responsibles,
