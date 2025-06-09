@@ -158,7 +158,10 @@ class VideosController {
 
   async GetVideo(req, res) {
     try {
-      const video = await VideosModel.find().populate("language").populate("country");
+      const video = await VideosModel.find()
+        .populate("archives")
+        .populate("language")
+        .populate("country");
 
       return res.status(200).json(video);
     } catch (error) {
@@ -218,7 +221,10 @@ class VideosController {
 
       console.log("Filtro aplicado:", filter);
 
-      const videos = await VideosModel.find(filter).populate("country").populate("language");
+      const videos = await VideosModel.find(filter)
+        .populate("archives")
+        .populate("country")
+        .populate("language");
 
       return res.status(200).json(videos);
     } catch (error) {
