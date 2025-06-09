@@ -22,7 +22,6 @@ routes.use("/archive", ArchiveRoutes);
 
 routes.use("/country", CountryRoutes);
 routes.use("/language", LanguageRoutes);
-
 routes.use("/download", DownloadRoutes);
 
 export default routes;

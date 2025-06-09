@@ -1,5 +1,3 @@
-import VideosModel from "../Models/VideosModel.js";
-
 import { generateThumb } from "../Utils/general/generateThumb.js";
 import { generateTranscription } from "../Utils/general/generateTranscription.js";
 import fs from "fs";
@@ -7,6 +5,7 @@ import path from "path";
 import ArchivesController from "./ArchivesController.js";
 import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
 
+import VideosModel from "../Models/VideosModel.js";
 import CountryModel from "../Models/CountryModel.js";
 import LanguageModel from "../Models/LanguageModel.js";
 
@@ -101,7 +100,6 @@ class VideosController {
         transcriptURL: transcription.transcriptURL,
         srtURL: transcription.srtURL,
 
-
         duration: convertToMinutes(duration || 0),
         date: date || new Date(),
         country,
@@ -161,13 +159,14 @@ class VideosController {
 
   async GetVideo(req, res) {
     try {
-
-      const video = await VideosModel.find().populate("language").populate("country");
+      const video = await VideosModel.find()
+        .populate("archives")
+        .populate("language")
+        .populate("country");
 
       return res.status(200).json(video);
     } catch (error) {
       return res.status(500).json({ message: "Not found", error: error.message });
-
     }
   }
 
@@ -177,7 +176,6 @@ class VideosController {
       let filter = {};
 
       if (totalParticipants) {
-
         if (totalParticipants.min == 10) {
           filter.totalParticipants = { $gte: Number(11) };
         } else {
@@ -186,9 +184,7 @@ class VideosController {
             $lte: Number(totalParticipants.max),
           };
         }
-
       }
-
 
       if (country && Array.isArray(country)) {
         const countries = await CountryModel.find({
@@ -222,7 +218,10 @@ class VideosController {
 
       console.log("Filtro construído:", JSON.stringify(filter, null, 2));
 
-      const videos = await VideosModel.find(filter).populate("country").populate("language");
+      const videos = await VideosModel.find(filter)
+        .populate("archives")
+        .populate("country")
+        .populate("language");
 
       console.log("aqui estao seus videos");
       console.log(videos);
@@ -231,7 +230,6 @@ class VideosController {
     } catch (error) {
       console.log(error);
       res.status(500).json({ message: "Not found", error: error.message });
-
     }
   }
 
