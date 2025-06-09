@@ -1,4 +1,4 @@
-import mongoose, { mongo } from "mongoose";
+import mongoose from "mongoose";
 
 const Schema = mongoose.Schema;
 
@@ -35,27 +35,26 @@ const VideosSchema = new Schema(
       required: true,
       trim: true,
     },
-
     totalParticipants: {
       type: Number,
       required: true,
       trim: true,
     },
     country: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "Country",
       required: true,
-      trim: true,
     },
     language: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "Language", 
       required: true,
-      trim: true,
     },
     duration: {
       type: Number,
       min: [0, "Video duration cannot be less than 0 seconds"],
     },
-    date: {
+    birthday: {
       type: Date,
       required: true,
     },
