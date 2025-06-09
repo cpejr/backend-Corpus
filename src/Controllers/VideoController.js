@@ -171,7 +171,7 @@ class VideosController {
 
   async GetVideoByParameters(req, res) {
     try {
-      const { totalParticipants, dates, duration, country, language } = req.query.filters || {};
+      const { totalParticipants, dates, duration, country, language } = req.query;
       let filter = {};
 
       if (totalParticipants) {
@@ -185,25 +185,25 @@ class VideosController {
         }
       }
 
-      if (country) {
-        const countryDoc = await CountryModel.findOne({
-          name: { $regex: new RegExp(country, "i") },
+      if (country && Array.isArray(country)) {
+        const countries = await CountryModel.find({
+          name: { $in: country.map((c) => new RegExp(c, "i")) },
         });
-        if (countryDoc) {
-          filter.country = countryDoc._id;
+        if (countries.length > 0) {
+          filter.country = { $all: countries.map((c) => c._id) };
         } else {
-          return res.status(404).json({ message: "País não encontrado." });
+          return res.status(404).json({ message: "Países não encontrados." });
         }
       }
 
-      if (language) {
-        const languageDoc = await LanguageModel.findOne({
-          name: { $regex: new RegExp(language, "i") },
+      if (language && Array.isArray(language)) {
+        const languages = await LanguageModel.find({
+          name: { $in: language.map((l) => new RegExp(l, "i")) },
         });
-        if (languageDoc) {
-          filter.language = languageDoc._id;
+        if (languages.length > 0) {
+          filter.language = { $all: languages.map((l) => l._id) };
         } else {
-          return res.status(404).json({ message: "Linguagem não encontrada." });
+          return res.status(404).json({ message: "Idiomas não encontrados." });
         }
       }
 
@@ -214,22 +214,21 @@ class VideosController {
       if (duration) {
         filter.duration = { $gte: Number(duration) };
       }
-      if (country) filter.country = country;
-      if (language) filter.language = language;
-      if (dates) filter.date = { $gte: new Date(dates) };
-      if (duration) filter.duration = { $gte: Number(duration) };
 
-      console.log("Filtro aplicado:", filter);
+      console.log("Filtro construído:", JSON.stringify(filter, null, 2));
 
       const videos = await VideosModel.find(filter)
         .populate("archives")
         .populate("country")
         .populate("language");
 
+      console.log("aqui estao seus videos");
+      console.log(videos);
+
       return res.status(200).json(videos);
     } catch (error) {
-      console.error("Error filtering videos:", error);
-      return res.status(500).json({ message: "Error filtering videos" });
+      console.log(error);
+      res.status(500).json({ message: "Not found", error: error.message });
     }
   }
 
