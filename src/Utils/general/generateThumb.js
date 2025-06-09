@@ -31,7 +31,7 @@ export async function generateThumb(inputPath) {
     return thumbnailBase64;
     ("");
   } catch (error) {
-    console.log(error);
+    console.err(error);
     return null;
   }
 }

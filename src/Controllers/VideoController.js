@@ -12,8 +12,6 @@ import LanguageModel from "../Models/LanguageModel.js";
 class VideosController {
   async Create(req, res) {
     try {
-      console.log("Starting video creation process...");
-
       const {
         title,
         language,
@@ -71,7 +69,6 @@ class VideosController {
 
       const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
       await fs.promises.writeFile(videoPath, videoBuffer);
-      console.log("Temporary video saved at:", videoPath);
 
       const thumbFile = await generateThumb(videoPath);
       if (!thumbFile) {
@@ -110,7 +107,6 @@ class VideosController {
       };
 
       const video = await VideosModel.create(videoData);
-      console.log("Video successfully created:", video._id);
 
       return res.status(201).json({
         message: "Video successfully created",
@@ -216,19 +212,13 @@ class VideosController {
         filter.duration = { $gte: Number(duration) };
       }
 
-      console.log("Filtro construído:", JSON.stringify(filter, null, 2));
-
       const videos = await VideosModel.find(filter)
         .populate("archives")
         .populate("country")
         .populate("language");
 
-      console.log("aqui estao seus videos");
-      console.log(videos);
-
       return res.status(200).json(videos);
     } catch (error) {
-      console.log(error);
       res.status(500).json({ message: "Not found", error: error.message });
     }
   }

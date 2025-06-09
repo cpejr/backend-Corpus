@@ -150,13 +150,10 @@ export async function generateTranscription(videoPath, language = "en-US", title
       : "transcricao";
 
     const languageCode = normalizeLanguageCode(language);
-    console.log(`Processing video in language: ${languageCode}`);
 
     audioPath = await extractAudio(videoPath);
-    console.log(`Audio extracted: ${audioPath}`);
 
     const cloudStorageUri = await uploadToBucket(audioPath, "api-transcription");
-    console.log(`File uploaded to cloud storage: ${cloudStorageUri}`);
 
     const config = {
       encoding: "FLAC",
@@ -169,7 +166,6 @@ export async function generateTranscription(videoPath, language = "en-US", title
       enableWordTimeOffsets: true,
     };
 
-    console.log("Using asynchronous recognition (all audio durations)");
     const [operation] = await speechClient.longRunningRecognize({
       audio: { uri: cloudStorageUri },
       config,
@@ -222,10 +218,9 @@ export async function generateTranscription(videoPath, language = "en-US", title
     );
     const srtPath = await saveSRTFile(subtitles, safeTitle);
     const vttPath = path.join(path.dirname(srtPath), `${safeTitle}.vtt`);
-    console.log(`Legenda SRT salva em: ${srtPath}`);
+
     convertSRTtoVTT(srtPath, vttPath);
 
-    console.log(`Transcript saved at: ${transcriptPath}`);
     const vttURL = `/transcripts/${safeTitle}.vtt`;
 
     return {

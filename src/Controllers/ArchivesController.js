@@ -30,7 +30,7 @@ class ArchiveController {
         : "transcricao";
       const vttFileName = `${safeTitle}.vtt`;
       const vttURL = `/transcripts/${vttFileName}`;
-      console.log("VTT URL do Controller:", vttURL);
+
       const videoFile = await getArchive(archives.videoKey);
       const thumbFile = await getArchive(archives.thumbKey);
       const data = { videoFile, thumbFile, vttURL };
