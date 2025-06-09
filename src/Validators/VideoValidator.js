@@ -16,7 +16,7 @@ const create = validateRequest({
     country: z.string({ required_error: "O país de origem é obrigatório" }),
     language: z.string({ required_error: "O idioma falado é obrigatório" }),
     duration: z.string({ required_error: "A duração é obrigatória" }),
-    date: z.date({ required_error: "A data é obrigatória" }),
+    birthday: z.date({ required_error: "A data é obrigatória" }),
   }),
 });
 
@@ -31,7 +31,7 @@ const get = validateRequest({
     country: z.string().optional(),
     language: z.string().optional(),
     duration: z.number().optional(),
-    date: z.string().optional(),
+    birthday: z.date().optional(),
   }),
 });
 const update = validateRequest({
