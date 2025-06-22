@@ -26,29 +26,6 @@ class VideosController {
         ShortDescription,
       } = req.body;
 
-      const requiredFields = {
-        title: "Title",
-        language: "Language",
-        videoFile: "Video file",
-        code: "Code",
-        country: "Country",
-        totalParticipants: "Total participants",
-        responsibles: "Responsibles",
-        context: "Context",
-        ShortDescription: "Short description",
-      };
-
-      const missingFields = Object.entries(requiredFields)
-        .filter(([field]) => !req.body[field])
-        .map(([_, name]) => name);
-
-      if (missingFields.length > 0) {
-        return res.status(400).json({
-          message: "Missing required fields!",
-          missingFields,
-        });
-      }
-
       const foundCode = await VideosModel.findOne({ code });
       if (foundCode) {
         return res.status(409).json({ message: "Code already registered!" });
