@@ -4,7 +4,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import { SpeechClient } from "@google-cloud/speech";
+import { v1p1beta1 } from "@google-cloud/speech";
+const SpeechClient = v1p1beta1.SpeechClient;
 import { Storage } from "@google-cloud/storage";
 import PDFDocument from "pdfkit";
 import { convertSRTtoVTT } from "./convertSrtToVtt.js";
@@ -138,7 +139,12 @@ async function saveSRTFile(subtitles, title) {
   return srtPath;
 }
 
-export async function generateTranscription(videoPath, language = "en-US", title) {
+export async function generateTranscription(
+  videoPath,
+  language = "en-US",
+  title,
+  totalParticipants
+) {
   let audioPath;
 
   try {
@@ -164,6 +170,8 @@ export async function generateTranscription(videoPath, language = "en-US", title
       enableWordConfidence: true,
       model: "default",
       enableWordTimeOffsets: true,
+      enableSpeakerDiarization: true,
+      diarizationSpeakerCount: totalParticipants,
     };
 
     const [operation] = await speechClient.longRunningRecognize({
@@ -181,33 +189,156 @@ export async function generateTranscription(videoPath, language = "en-US", title
     const subtitles = [];
     let subtitleIndex = 1;
 
+    // 1. Sistema de diagnóstico melhorado
+    const speakerStats = {
+      totalWords: 0,
+      validTags: 0,
+      uniqueTags: new Set(),
+      speakerMapping: {},
+    };
+
+    // 2. Pré-processamento: criar mapa de falantes considerando base zero
+    const speakerMap = new Map();
+    const isZeroBased = true; // API está usando tags baseadas em zero
+
+    for (let i = 0; i < totalParticipants; i++) {
+      const speakerId = isZeroBased ? i : i + 1;
+      const speakerLabel = `Falante ${i + 1}`;
+      speakerMap.set(speakerId, speakerLabel);
+      speakerStats.speakerMapping[speakerId] = speakerLabel;
+    }
+
+    // 3. Adicionar casos especiais
+    speakerMap.set("unknown", "Falante Desconhecido");
+    speakerMap.set("invalid", "Falante Não Identificado");
+
     for (const result of response.results) {
       const alternative = result.alternatives[0];
       const words = alternative.words;
-
       if (!words || words.length === 0) continue;
 
-      const chunkSize = 5;
-      for (let i = 0; i < words.length; i += chunkSize) {
-        const chunk = words.slice(i, i + chunkSize);
-        const text = chunk.map((w) => w.word).join(" ");
+      let currentChunk = [];
+      let currentSpeaker = null;
 
-        const start = chunk[0].startTime;
-        const end = chunk[chunk.length - 1].endTime;
+      for (let i = 0; i < words.length; i++) {
+        const word = words[i];
+        speakerStats.totalWords++;
 
-        const formatTime = (time) => {
-          const seconds = parseFloat(time.seconds || 0) + (time.nanos || 0) / 1e9;
-          const date = new Date(0);
-          date.setSeconds(seconds);
-          return date.toISOString().substr(11, 12).replace(".", ",");
-        };
+        // 4. Normalização adaptativa de speakerTag
+        let speakerTag = "unknown";
 
-        subtitles.push(
-          `${subtitleIndex++}\n${formatTime(start)} --> ${formatTime(end)}\n${text}\n`
-        );
+        try {
+          // Converter para número
+          const numericTag = Number(word.speakerTag);
 
-        transcription += `${text} `;
+          if (!isNaN(numericTag)) {
+            // Aceitar tags baseadas em zero (0 a totalParticipants-1)
+            if (numericTag >= 0 && numericTag < totalParticipants) {
+              speakerTag = numericTag;
+              speakerStats.validTags++;
+              speakerStats.uniqueTags.add(numericTag);
+            }
+            // Aceitar tags baseadas em um (1 a totalParticipants)
+            else if (numericTag >= 1 && numericTag <= totalParticipants) {
+              speakerTag = numericTag - 1; // Converter para base zero
+              speakerStats.validTags++;
+              speakerStats.uniqueTags.add(numericTag);
+            } else {
+              speakerTag = "invalid";
+            }
+          } else if (typeof word.speakerTag === "string") {
+            // Tentar extrair número de strings
+            const match = word.speakerTag.match(/\d+/);
+            if (match) {
+              const num = parseInt(match[0]);
+              if (num >= 0 && num < totalParticipants) {
+                speakerTag = num;
+                speakerStats.validTags++;
+                speakerStats.uniqueTags.add(num);
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Erro ao processar speakerTag:", word.speakerTag, error);
+          speakerTag = "invalid";
+        }
+
+        // 5. Determinar se deve quebrar o chunk
+        const shouldBreakChunk =
+          (currentSpeaker !== null && currentSpeaker !== speakerTag) || currentChunk.length >= 5;
+
+        if (shouldBreakChunk && currentChunk.length > 0) {
+          processChunk(currentChunk, currentSpeaker);
+          currentChunk = [];
+        }
+
+        if (currentChunk.length === 0) {
+          currentSpeaker = speakerTag;
+        }
+
+        currentChunk.push(word);
       }
+
+      // Processar último chunk do result
+      if (currentChunk.length > 0) {
+        processChunk(currentChunk, currentSpeaker);
+      }
+    }
+
+    // Função de processamento
+    function processChunk(chunk, speakerTag) {
+      const text = chunk.map((w) => w.word).join(" ");
+      const start = chunk[0].startTime;
+      const end = chunk[chunk.length - 1].endTime;
+
+      // 6. Obter rótulo com fallback inteligente
+      let speakerLabel = speakerMap.get(speakerTag);
+
+      if (!speakerLabel) {
+        // Tentar converter para número se for string
+        const numericTag = Number(speakerTag);
+        if (!isNaN(numericTag)) {
+          speakerLabel = `Falante ${numericTag + 1}`;
+        } else {
+          speakerLabel = `Falante ${speakerTag}`;
+        }
+      }
+
+      const formatTime = (time) => {
+        if (!time) return "00:00:00,000";
+        const seconds = parseFloat(time.seconds || 0) + (time.nanos || 0) / 1e9;
+        const date = new Date(0);
+        date.setSeconds(seconds);
+        return date.toISOString().substr(11, 12).replace(".", ",");
+      };
+
+      subtitles.push(`${subtitleIndex}\n${formatTime(start)} --> ${formatTime(end)}\n${text}\n`);
+
+      transcription += `${formatTime(start)} --> ${formatTime(end)}\n${speakerLabel}: ${text}\n`;
+      subtitleIndex++;
+    }
+
+    // 7. Relatório de diagnóstico completo
+    console.log("===== DIAGNÓSTICO DE FALANTES =====");
+    console.log(`Total de palavras processadas: ${speakerStats.totalWords}`);
+    console.log(
+      `Tags válidas detectadas: ${speakerStats.validTags} (${(
+        (speakerStats.validTags / speakerStats.totalWords) *
+        100
+      ).toFixed(1)}%)`
+    );
+    console.log(`Tags únicas encontradas: ${[...speakerStats.uniqueTags].join(", ")}`);
+    console.log(`Mapeamento de falantes:`, speakerStats.speakerMapping);
+
+    // 8. Relatório de falantes detectados
+    if (speakerStats.uniqueTags.size > 0) {
+      console.log("\nFalantes detectados:");
+      speakerStats.uniqueTags.forEach((tag) => {
+        const speakerLabel = speakerMap.get(tag) || `Falante ${tag + 1}`;
+        console.log(`- Tag ${tag} → ${speakerLabel}`);
+      });
+    } else {
+      console.warn("\n⚠️ Nenhum falante identificado! Verifique a configuração da API");
     }
 
     const transcriptPath = await saveTranscriptToFile(
