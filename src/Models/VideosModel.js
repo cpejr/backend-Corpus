@@ -67,6 +67,10 @@ const VideosSchema = new Schema(
       required: false,
       trim: true,
     },
+    ManualTranscriptionArchive: {
+      type: Schema.Types.ObjectId,
+      ref: "ManualTranscriptionArchive",
+    },
   },
   {
     timestamps: true,
