@@ -8,7 +8,7 @@ import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
 import VideosModel from "../Models/VideosModel.js";
 import CountryModel from "../Models/CountryModel.js";
 import LanguageModel from "../Models/LanguageModel.js";
-
+import ManualTranscriptionArchiveController from "./ManualTranscriptionArchiveController.js";
 class VideosController {
   async Create(req, res) {
     try {
@@ -163,7 +163,8 @@ class VideosController {
       const video = await VideosModel.find()
         .populate("archives")
         .populate("language")
-        .populate("country");
+        .populate("country")
+        .populate("ManualTranscriptionArchive");
 
       return res.status(200).json(video);
     } catch (error) {
@@ -220,6 +221,7 @@ class VideosController {
       const videos = await VideosModel.find(filter)
         .populate("archives")
         .populate("country")
+        .populate("ManualTranscriptionArchive")
         .populate("language");
 
       return res.status(200).json(videos);
@@ -231,15 +233,29 @@ class VideosController {
   async UpdateVideo(req, res) {
     try {
       const { id } = req.params;
-      const video = await VideosModel.findByIdAndUpdate(id, req.body, {
-        new: true,
-        runValidators: true,
-      }).populate("archives");
-
+      const video = await VideosModel.findById(id);
+      console.log(video);
       if (!video) {
         return res.status(404).json({ message: "Video not found" });
       }
-
+      if (req.body?.ManualTranscriptionArchive) {
+        if (video?.ManualTrasription) {
+          const archivesID = await ManualTranscriptionArchiveController.updateArchives({
+            id: video.ManualTranscriptionArchive,
+            ManualTranscriptionArchive: req.body.ManualTranscriptionArchive,
+            name: video.title,
+          });
+          video.ManualTranscriptionArchive = archivesID;
+          await video.save();
+        } else {
+          const archivesID = await ManualTranscriptionArchiveController.createArchives({
+            ManualTranscriptionArchive: req.body.ManualTranscriptionArchive,
+            name: video.title,
+          });
+          video.ManualTranscriptionArchive = archivesID;
+          await video.save();
+        }
+      }
       return res.status(200).json(video);
     } catch (error) {
       console.error("Error updating video:", error);
