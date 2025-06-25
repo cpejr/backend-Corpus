@@ -18,8 +18,10 @@ class ManualTranscriptionArchiveController {
     try {
       const { id } = req.params;
 
-      const archives = await ArchivesModel.findById(id);
-      return res.status(200).json(archives);
+      const archives = await ManualTranscriptionArchiveModel.findById(id);
+      console.log(archives);
+      const manualTranslation = await getArchive(archives.key);
+      return res.status(200).json(manualTranslation);
     } catch (error) {
       throw error;
     }
@@ -28,7 +30,7 @@ class ManualTranscriptionArchiveController {
   async updateArchives(req, res) {
     try {
       const { id, ManualTranscriptionArchive, name } = req.body;
-      await ManualTranscriptionArchiveModel.deleteArchives(id);
+      await deleteArchive(id);
       const newArchives = await ManualTranscriptionArchiveModel.createArchives({
         ManualTranscriptionArchive,
         name,
