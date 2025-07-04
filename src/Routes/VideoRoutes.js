@@ -15,6 +15,7 @@ VideoRoutes.get("/", VideoController.GetVideo);
 VideoRoutes.put("/:id", VideoController.UpdateVideo);
 VideoRoutes.delete("/:id", VideoController.Destroy);
 VideoRoutes.get("/:data", VideoController.GetVideoByParameters);
+VideoRoutes.post( "/chunk",verifyJWT,VideoController.uploadChunkBase64);
 
 
 export default VideoRoutes;

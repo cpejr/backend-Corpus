@@ -10,6 +10,68 @@ import CountryModel from "../Models/CountryModel.js";
 import LanguageModel from "../Models/LanguageModel.js";
 
 class VideosController {
+  constructor() {
+    this.chunksDir = path.resolve("./src/Utils/tempChunks");
+    this.uploadChunkBase64 = this.uploadChunkBase64.bind(this);
+  }
+
+  async uploadChunkBase64(req, res) {
+    try {
+      const { filename, index, totalChunks, chunk } = req.body;
+
+    console.log("BODY DO CHUNK", req.body);
+
+      if (!filename || index === undefined || !totalChunks || !chunk) {
+        console.warn("[uploadChunkBase64] Campos faltando no corpo da requisição");
+        return res.status(400).json({ message: "Missing fields" });
+      }
+
+      const chunksFolderExists = fs.existsSync(this.chunksDir);
+      if (!chunksFolderExists) {
+        console.log("[uploadChunkBase64] Diretório chunks não existe, criando:", this.chunksDir);
+        fs.mkdirSync(this.chunksDir, { recursive: true });
+      }
+
+      const chunkFilePath = path.join(this.chunksDir, `${filename}.part${index}`);
+      const base64Data = chunk.includes(",") ? chunk.split(",")[1] : chunk;
+
+      await fs.promises.writeFile(chunkFilePath, base64Data, "utf8");
+
+      if (index + 1 === totalChunks) {
+        const finalBase64Path = path.resolve(`./src/Utils/tempChunks/${filename}.b64`);
+
+        const writeStream = fs.createWriteStream(finalBase64Path, { encoding: "utf8" });
+
+        for (let i = 0; i < totalChunks; i++) {
+          const partPath = path.join(this.chunksDir, `${filename}.part${i}`);
+          const partBase64 = await fs.promises.readFile(partPath, "utf8");
+          writeStream.write(partBase64);
+          await fs.promises.unlink(partPath);
+        }
+
+        writeStream.end();
+
+        writeStream.on("finish", () => {
+          console.log(" arquivo base64 montado com sucesso:", finalBase64Path);
+          return res.status(200).json({
+            message: "Upload completo e arquivo Base64 montado",
+            path: finalBase64Path,
+          });
+        });
+
+        writeStream.on("error", (err) => {
+          console.error(" Erro ao montar arquivo de base 64 final:", err);
+          return res.status(500).json({ message: "Erro ao montar o arquivo de base 64final", error: err.message });
+        });
+      } else {
+        return res.status(200).json({ message: `Chunk ${index + 1} recebido` });
+      }
+    } catch (error) {
+      console.error("[uploadChunkBase64] Erro interno:", error);
+      return res.status(500).json({ message: "Erro interno", error: error.message });
+    }
+  }
+
   async Create(req, res) {
     try {
       const {
@@ -37,6 +99,7 @@ class VideosController {
         context: "Context",
         ShortDescription: "Short description",
       };
+      console.log("BODY DA REQ.",req.body);
 
       const missingFields = Object.entries(requiredFields)
         .filter(([field]) => !req.body[field])
@@ -54,14 +117,14 @@ class VideosController {
         return res.status(409).json({ message: "Code already registered!" });
       }
 
-      const regex = /^data:(video\/)(\w+)(;base64,)(.+)$/;
-      const matches = videoFile.match(regex);
-      if (!matches) {
-        return res.status(400).json({ message: "Invalid video format!" });
-      }
+      // const regex = /^data:(video\/)(\w+)(;base64,)(.+)$/;
+      // const matches = videoFile.match(regex);
+      // if (!matches) {
+      //   return res.status(400).json({ message: "Invalid video format!" });
+      // }
 
-      const dataType = matches[2];
-      const videoFileData = matches[4];
+      const dataType = videoFile;
+      const videoFileData = videoFile;
       const videoBuffer = Buffer.from(videoFileData, "base64");
       if (videoBuffer.length === 0) {
         return res.status(400).json({ message: "Empty video file!" });
@@ -129,6 +192,8 @@ class VideosController {
     }
   }
 
+
+
   async DownloadVideo(req, res) {
     try {
       const { id } = req.params;
@@ -148,7 +213,6 @@ class VideosController {
 
       return res.send(buffer);
     } catch (error) {
-      console.error("Error downloading video:", error);
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -237,7 +301,6 @@ class VideosController {
 
       return res.status(200).json(video);
     } catch (error) {
-      console.error("Error updating video:", error);
       return res.status(500).json({ message: "Error updating video" });
     }
   }
@@ -258,7 +321,6 @@ class VideosController {
       await VideosModel.findByIdAndDelete(id);
       return res.status(200).json({ message: "Video successfully deleted!" });
     } catch (error) {
-      console.error("Error deleting video:", error);
       return res.status(500).json({ message: "Error deleting video" });
     }
   }
