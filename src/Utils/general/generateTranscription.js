@@ -212,77 +212,84 @@ export async function generateTranscription(
     speakerMap.set("unknown", "Falante Desconhecido");
     speakerMap.set("invalid", "Falante Não Identificado");
 
+    let allWords = [];
     for (const result of response.results) {
       const alternative = result.alternatives[0];
-      const words = alternative.words;
-      if (!words || words.length === 0) continue;
+      if (alternative.words && alternative.words.length > 0) {
+        allWords = allWords.concat(alternative.words);
+      }
+    }
+    allWords.sort((a, b) => {
+      const aSec = Number(a.startTime?.seconds || 0) + Number(a.startTime?.nanos || 0) / 1e9;
+      const bSec = Number(b.startTime?.seconds || 0) + Number(b.startTime?.nanos || 0) / 1e9;
+      return aSec - bSec;
+    });
 
-      let currentChunk = [];
-      let currentSpeaker = null;
+    let currentChunk = [];
+    let currentSpeaker = null;
 
-      for (let i = 0; i < words.length; i++) {
-        const word = words[i];
-        speakerStats.totalWords++;
+    for (let i = 0; i < allWords.length; i++) {
+      const word = allWords[i];
+      speakerStats.totalWords++;
 
-        // 4. Normalização adaptativa de speakerTag
-        let speakerTag = "unknown";
+      // 4. Normalização adaptativa de speakerTag
+      let speakerTag = "unknown";
 
-        try {
-          // Converter para número
-          const numericTag = Number(word.speakerTag);
+      try {
+        // Converter para número
+        const numericTag = Number(word.speakerTag);
 
-          if (!isNaN(numericTag)) {
-            // Aceitar tags baseadas em zero (0 a totalParticipants-1)
-            if (numericTag >= 0 && numericTag < totalParticipants) {
-              speakerTag = numericTag;
+        if (!isNaN(numericTag)) {
+          // Aceitar tags baseadas em zero (0 a totalParticipants-1)
+          if (numericTag >= 0 && numericTag < totalParticipants) {
+            speakerTag = numericTag;
+            speakerStats.validTags++;
+            speakerStats.uniqueTags.add(numericTag);
+          }
+          // Aceitar tags baseadas em um (1 a totalParticipants)
+          else if (numericTag >= 1 && numericTag <= totalParticipants) {
+            speakerTag = numericTag - 1; // Converter para base zero
+            speakerStats.validTags++;
+            speakerStats.uniqueTags.add(numericTag);
+          } else {
+            speakerTag = "invalid";
+          }
+        } else if (typeof word.speakerTag === "string") {
+          // Tentar extrair número de strings
+          const match = word.speakerTag.match(/\d+/);
+          if (match) {
+            const num = parseInt(match[0]);
+            if (num >= 0 && num < totalParticipants) {
+              speakerTag = num;
               speakerStats.validTags++;
-              speakerStats.uniqueTags.add(numericTag);
-            }
-            // Aceitar tags baseadas em um (1 a totalParticipants)
-            else if (numericTag >= 1 && numericTag <= totalParticipants) {
-              speakerTag = numericTag - 1; // Converter para base zero
-              speakerStats.validTags++;
-              speakerStats.uniqueTags.add(numericTag);
-            } else {
-              speakerTag = "invalid";
-            }
-          } else if (typeof word.speakerTag === "string") {
-            // Tentar extrair número de strings
-            const match = word.speakerTag.match(/\d+/);
-            if (match) {
-              const num = parseInt(match[0]);
-              if (num >= 0 && num < totalParticipants) {
-                speakerTag = num;
-                speakerStats.validTags++;
-                speakerStats.uniqueTags.add(num);
-              }
+              speakerStats.uniqueTags.add(num);
             }
           }
-        } catch (error) {
-          console.error("Erro ao processar speakerTag:", word.speakerTag, error);
-          speakerTag = "invalid";
         }
-
-        // 5. Determinar se deve quebrar o chunk
-        const shouldBreakChunk =
-          (currentSpeaker !== null && currentSpeaker !== speakerTag) || currentChunk.length >= 5;
-
-        if (shouldBreakChunk && currentChunk.length > 0) {
-          processChunk(currentChunk, currentSpeaker);
-          currentChunk = [];
-        }
-
-        if (currentChunk.length === 0) {
-          currentSpeaker = speakerTag;
-        }
-
-        currentChunk.push(word);
+      } catch (error) {
+        console.error("Erro ao processar speakerTag:", word.speakerTag, error);
+        speakerTag = "invalid";
       }
 
-      // Processar último chunk do result
-      if (currentChunk.length > 0) {
+      // 5. Determinar se deve quebrar o chunk
+      const shouldBreakChunk =
+        (currentSpeaker !== null && currentSpeaker !== speakerTag) || currentChunk.length >= 5;
+
+      if (shouldBreakChunk && currentChunk.length > 0) {
         processChunk(currentChunk, currentSpeaker);
+        currentChunk = [];
       }
+
+      if (currentChunk.length === 0) {
+        currentSpeaker = speakerTag;
+      }
+
+      currentChunk.push(word);
+    }
+
+    // Processar último chunk do result
+    if (currentChunk.length > 0) {
+      processChunk(currentChunk, currentSpeaker);
     }
 
     // Função de processamento
