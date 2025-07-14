@@ -225,17 +225,18 @@ class VideosController {
 
   async UpdateVideo(req, res) {
     try {
+      console.log(req.body);
+      console.log(req.params);
       const { id } = req.params;
       const video = await VideosModel.findByIdAndUpdate(id, req.body, {
         new: true,
-        runValidators: true,
       }).populate("archives");
 
       if (!video) {
         return res.status(404).json({ message: "Video not found" });
       }
 
-      return res.status(200).json(video);
+      return res.status(200).json();
     } catch (error) {
       console.error("Error updating video:", error);
       return res.status(500).json({ message: "Error updating video" });
