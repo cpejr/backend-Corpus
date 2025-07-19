@@ -67,6 +67,10 @@ const VideosSchema = new Schema(
       required: false,
       trim: true,
     },
+    videoKey: {
+      type: String,
+      required: true,
+    },
   },
   {
     timestamps: true,

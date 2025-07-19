@@ -2,12 +2,14 @@ import VideoValidator from "../Validators/VideoValidator.js";
 import VideoController from "../Controllers/VideoController.js";
 import express from "express";
 import verifyJWT from "../Middlewares/VerifyJwt.js";
+import upload from "../Config/multer.js";
 
 const VideoRoutes = express.Router();
 
 VideoRoutes.post(
   "/",
   verifyJWT, //VideoValidator.create,
+  upload.single("videoFile"),
   VideoController.Create
 );
 
@@ -15,6 +17,5 @@ VideoRoutes.get("/", VideoController.GetVideo);
 VideoRoutes.put("/:id", VideoController.UpdateVideo);
 VideoRoutes.delete("/:id", VideoController.Destroy);
 VideoRoutes.get("/:data", VideoController.GetVideoByParameters);
-
 
 export default VideoRoutes;
