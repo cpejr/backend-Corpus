@@ -42,8 +42,6 @@ class VideosController {
         .filter(([field]) => !req.body[field])
         .map(([_, name]) => name);
 
-      console.log("Requisição do file", req.file);
-
       if (missingFields.length > 0) {
         return res.status(400).json({
           message: "Missing required fields!",
@@ -69,6 +67,7 @@ class VideosController {
       await fs.promises.writeFile(tempPath, file.buffer);
 
       const thumbFile = await generateThumb(tempPath);
+      console.log("THUMNAIL", thumbFile);
       if (!thumbFile) {
         await fs.promises.unlink(tempPath);
         return res.status(500).json({ message: "Error generating thumbnail!" });
@@ -76,7 +75,7 @@ class VideosController {
       const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
       const archivesID = await ArchivesController.createArchives({
         thumbFile: thumbFile,
-
+        videoFile: file,
         name: safeTitle,
       });
 

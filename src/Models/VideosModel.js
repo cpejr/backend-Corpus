@@ -67,6 +67,7 @@ const VideosSchema = new Schema(
       required: false,
       trim: true,
     },
+    //Chave do video na S3
     videoKey: {
       type: String,
       required: true,
