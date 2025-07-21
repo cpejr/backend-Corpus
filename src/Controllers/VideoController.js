@@ -79,8 +79,14 @@ class VideosController {
         name: safeTitle,
       });
 
-      const transcription = await generateTranscription(tempPath, language, title);
-      console.log("Transcription result:", transcription ? "Success" : "Failure");
+      
+      const languageData = await LanguageModel.findById(language);
+      if (!languageData) {
+        return res.status(400).json({ message: "Invalid language ID" });
+      }
+      const langValue = languageData.code || languageData.name;
+
+      const transcription = await generateTranscription(tempPath, langValue, title);
 
       await fs.promises.unlink(tempPath).catch(console.error);
 
