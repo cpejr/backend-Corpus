@@ -139,6 +139,7 @@ async function saveSRTFile(subtitles, title) {
 }
 
 export async function generateTranscription(videoPath, language = "en-US", title) {
+  console.log("Idioma recebido no parâmetro language:", language);
   let audioPath;
 
   try {
@@ -149,7 +150,9 @@ export async function generateTranscription(videoPath, language = "en-US", title
       ? title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
       : "transcricao";
 
-    const languageCode = normalizeLanguageCode(language);
+      const languageCode = normalizeLanguageCode(language);
+  console.log("Idioma após normalização (languageCode):", languageCode);
+
 
     audioPath = await extractAudio(videoPath);
 
@@ -165,6 +168,9 @@ export async function generateTranscription(videoPath, language = "en-US", title
       model: "default",
       enableWordTimeOffsets: true,
     };
+
+
+    console.log("Configuração para API de transcrição:", config);
 
     const [operation] = await speechClient.longRunningRecognize({
       audio: { uri: cloudStorageUri },
