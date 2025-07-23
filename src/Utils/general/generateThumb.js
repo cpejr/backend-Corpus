@@ -4,34 +4,33 @@ import fs from "fs/promises";
 import path from "path";
 
 export async function generateThumb(inputPath) {
+  const tempDir = path.join("./src/Utils/database");
+  const tempFilePath = path.join(tempDir, "thumb.webp");
+
   try {
     ffmpeg.setFfmpegPath(ffmpegStatic);
-
-    const filePath = path.join("./src/Utils/database", "thumb.webp");
 
     await new Promise((resolve, reject) => {
       ffmpeg(inputPath)
         .takeScreenshots({
           count: 1,
-          timemarks: ["2"],
-          filename: path.basename(filePath),
-          folder: path.dirname(filePath),
+          timemarks: ["2"], // Pega o frame aos 2 segundos
+          filename: "thumb.webp",
+          folder: tempDir,
         })
         .on("end", resolve)
-        .on("error", (error) => {
-          console.error("Erro ao gerar a thumbnail:", error);
-          reject(error);
-        });
+        .on("error", reject);
     });
 
-    const thumbnailData = await fs.readFile(filePath);
-    const thumbnailBase64 = thumbnailData.toString("base64");
-    await fs.unlink(filePath);
+    const thumbnailBuffer = await fs.readFile(tempFilePath);
 
-    return thumbnailBase64;
-    ("");
+    await fs.unlink(tempFilePath);
+
+    return thumbnailBuffer;
   } catch (error) {
-    console.err(error);
+    console.error("Erro ao gerar a thumbnail:", error);
+
+    await fs.unlink(tempFilePath).catch(() => {});
     return null;
   }
 }

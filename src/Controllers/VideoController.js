@@ -8,6 +8,7 @@ import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
 import VideosModel from "../Models/VideosModel.js";
 import CountryModel from "../Models/CountryModel.js";
 import LanguageModel from "../Models/LanguageModel.js";
+import { sendArchive } from "../Config/Aws.js";
 
 class VideosController {
   async Create(req, res) {
@@ -15,7 +16,6 @@ class VideosController {
       const {
         title,
         language,
-        videoFile,
         code,
         birthday,
         duration,
@@ -25,11 +25,11 @@ class VideosController {
         context,
         ShortDescription,
       } = req.body;
+      const file = req.file;
 
       const requiredFields = {
         title: "Title",
         language: "Language",
-        videoFile: "Video file",
         code: "Code",
         country: "Country",
         totalParticipants: "Total participants",
@@ -48,44 +48,47 @@ class VideosController {
           missingFields,
         });
       }
+      if (!file) {
+        return res.status(400).json({ message: "Arquivo não enviado" });
+      }
 
       const foundCode = await VideosModel.findOne({ code });
       if (foundCode) {
         return res.status(409).json({ message: "Code already registered!" });
       }
 
-      const regex = /^data:(video\/)(\w+)(;base64,)(.+)$/;
-      const matches = videoFile.match(regex);
-      if (!matches) {
-        return res.status(400).json({ message: "Invalid video format!" });
-      }
+      const s3Key = await sendArchive(file.buffer, file.originalname);
+      console.log("Key AWS", s3Key);
 
-      const dataType = matches[2];
-      const videoFileData = matches[4];
-      const videoBuffer = Buffer.from(videoFileData, "base64");
-      if (videoBuffer.length === 0) {
-        return res.status(400).json({ message: "Empty video file!" });
-      }
+      //      const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
+      const tempPath = path.join("./src/Utils/database", `input.${file.originalname}`);
+      const tempDir = path.dirname(tempPath);
+      await fs.promises.mkdir(tempDir, { recursive: true });
+      await fs.promises.writeFile(tempPath, file.buffer);
 
-      const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
-      await fs.promises.writeFile(videoPath, videoBuffer);
-
-      const thumbFile = await generateThumb(videoPath);
+      const thumbFile = await generateThumb(tempPath);
+      console.log("THUMNAIL", thumbFile);
       if (!thumbFile) {
-        await fs.promises.unlink(videoPath);
+        await fs.promises.unlink(tempPath);
         return res.status(500).json({ message: "Error generating thumbnail!" });
       }
       const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
       const archivesID = await ArchivesController.createArchives({
         thumbFile: thumbFile,
-        videoFile: videoFileData,
+        videoFile: file,
         name: safeTitle,
       });
 
-      const transcription = await generateTranscription(videoPath, language, title);
-      console.log("Transcription result:", transcription ? "Success" : "Failure");
+      
+      const languageData = await LanguageModel.findById(language);
+      if (!languageData) {
+        return res.status(400).json({ message: "Invalid language ID" });
+      }
+      const langValue = languageData.code || languageData.name;
 
-      await fs.promises.unlink(videoPath).catch(console.error);
+      const transcription = await generateTranscription(tempPath, langValue, title);
+
+      await fs.promises.unlink(tempPath).catch(console.error);
 
       const videoData = {
         title,
@@ -104,6 +107,7 @@ class VideosController {
         responsibles,
         context,
         ShortDescription,
+        videoKey: s3Key,
       };
 
       const video = await VideosModel.create(videoData);
@@ -134,19 +138,17 @@ class VideosController {
       const { id } = req.params;
       const video = await VideosModel.findById(id);
 
-      if (!video || !video.archives || !video.archives.videoFile) {
-        return res.status(404).json({ message: "Video not found" });
-      }
-
-      const base64 = video.archives.videoFile;
-      const buffer = Buffer.from(base64, "base64");
-
+      const s3Stream = await getArchive(video.videoKey);
       res.set({
         "Content-Type": "video/mp4",
         "Content-Disposition": `attachment; filename="${video.title}.mp4"`,
       });
 
-      return res.send(buffer);
+      s3Stream.pipe(res);
+
+      if (!video) {
+        return res.status(404).json({ message: "Video not found" });
+      }
     } catch (error) {
       console.error("Error downloading video:", error);
       return res.status(500).json({ message: "Internal server error" });
@@ -225,17 +227,18 @@ class VideosController {
 
   async UpdateVideo(req, res) {
     try {
+      console.log(req.body);
+      console.log(req.params);
       const { id } = req.params;
       const video = await VideosModel.findByIdAndUpdate(id, req.body, {
         new: true,
-        runValidators: true,
       }).populate("archives");
 
       if (!video) {
         return res.status(404).json({ message: "Video not found" });
       }
 
-      return res.status(200).json(video);
+      return res.status(200).json();
     } catch (error) {
       console.error("Error updating video:", error);
       return res.status(500).json({ message: "Error updating video" });

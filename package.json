@@ -8,7 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "npx env-cmd -f .env.development nodemon src/index.js",
     "prod": "npx env-cmd -f .env.production node src/index.js",
-    "start":"node src/index.js"
+    "start": "node src/index.js"
   },
   "repository": {
     "type": "git",
@@ -19,6 +19,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.689.0",
     "@aws-sdk/lib-storage": "^3.735.0",
+    "@aws-sdk/s3-request-presigner": "^3.848.0",
     "@ffmpeg/ffmpeg": "^0.12.10",
     "@google-cloud/speech": "^7.0.1",
     "@google-cloud/storage": "^7.16.0",
@@ -36,6 +37,7 @@
     "form-data": "^4.0.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.3.4",
+    "multer": "^2.0.2",
     "nodemailer": "^6.9.14",
     "nodemon": "^3.1.0",
     "openai": "^4.91.1",
