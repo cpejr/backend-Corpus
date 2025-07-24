@@ -1,22 +1,23 @@
 import LanguageModel from "../Models/LanguageModel.js";
 
 class LanguageController {
-  
   async createLanguage(req, res) {
     try {
-      const { name } = req.body;
+      const { name, code } = req.body;
 
-      if (!name ) {
+      if (!name || !code) {
         return res.status(400).json({ message: "Campos obrigatórios não preenchidos." });
       }
 
-      const alreadyExists = await LanguageModel.findOne({ $or: [{ name }] });
+      const alreadyExists = await LanguageModel.findOne({ 
+        $or: [{ name }, { code }] 
+      });
 
       if (alreadyExists) {
-        return res.status(409).json({ message: "Língua já cadastrada!" });
+        return res.status(409).json({ message: "Língua ou código já cadastrados!" });
       }
 
-      const language = await LanguageModel.create({ name});
+      const language = await LanguageModel.create({ name, code });
       return res.status(201).json(language);
     } catch (error) {
       return res.status(500).json({ message: "Erro no servidor", error: error.message });

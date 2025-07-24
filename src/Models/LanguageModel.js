@@ -6,6 +6,11 @@ const LanguageSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true
+    },
+    code: {
+      type: String,
+      required: true,
+      unique: true
     }
   },
   {
@@ -13,6 +18,6 @@ const LanguageSchema = new mongoose.Schema(
   }
 );
 
-const LanguageModel =mongoose.model("Language", LanguageSchema)
+const LanguageModel = mongoose.model("Language", LanguageSchema);
 
-export default LanguageModel
+export default LanguageModel;
