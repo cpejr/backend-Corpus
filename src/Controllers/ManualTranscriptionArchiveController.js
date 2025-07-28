@@ -1,12 +1,14 @@
-import ArchivesModel from "../Models/ArchivesModel.js";
-import { deleteArchive, getArchive, sendArchive } from "../Config/Aws.js";
 import ManualTranscriptionArchiveModel from "../Models/ManualTranscriptionArchiveModel.js";
-class ManualTranscriptionArchiveController {
-  async createArchives(req, res) {
-    try {
-      const { ManualTranscriptionArchive, name } = req;
+import { sendArchive, getSignedUrlForFile, deleteArchive } from "../Config/Aws.js";
 
-      const key = await sendArchive(ManualTranscriptionArchive, name);
+class ManualTranscriptionArchiveController {
+  async createArchives({ ManualTranscriptionArchive, name }) {
+    try {
+      const key = await sendArchive(
+        ManualTranscriptionArchive.buffer,
+        ManualTranscriptionArchive.originalname,
+        ManualTranscriptionArchive.mimetype
+      );
       const archives = await ManualTranscriptionArchiveModel.create({ key, name });
       return archives._id;
     } catch (error) {
@@ -17,26 +19,33 @@ class ManualTranscriptionArchiveController {
   async getArchives(req, res) {
     try {
       const { id } = req.params;
-
       const archives = await ManualTranscriptionArchiveModel.findById(id);
-     
-      const manualTranslation = await getArchive(archives.key);
-      return res.status(200).json(manualTranslation);
+      if (!archives) {
+        return res.status(404).json({ message: "Manual transcription not found" });
+      }
+
+      const url = await getSignedUrlForFile(archives.key);
+
+      return res.json({ url });
     } catch (error) {
-      throw error;
+      console.error(error);
+      return res.status(500).json({ message: "Internal Server Error" });
     }
   }
 
-  async updateArchives(req, res) {
+  async updateArchives({ id, ManualTranscriptionArchive, name }) {
     try {
-      const { id, ManualTranscriptionArchive, name } = req.body;
-      await deleteArchive(id);
-      const newArchives = await ManualTranscriptionArchiveModel.createArchives({
+      const existing = await ManualTranscriptionArchiveModel.findById(id);
+      if (!existing) throw new Error("Manual transcription archive not found");
+
+      await deleteArchive(existing.key);
+
+      const newArchiveId = await this.createArchives({
         ManualTranscriptionArchive,
         name,
       });
 
-      return newArchives;
+      return newArchiveId;
     } catch (error) {
       throw error;
     }

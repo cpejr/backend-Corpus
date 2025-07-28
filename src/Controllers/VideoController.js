@@ -229,10 +229,7 @@ class VideosController {
 
   async UpdateVideo(req, res) {
   try {
-    console.log("==== INÍCIO DO UPDATE DE VÍDEO ====");
-    console.log("REQ.PARAMS:", req.params);
-    console.log("REQ.BODY:", req.body);
-    console.log("REQ.FILE:", req.file);
+  
 
     const { id } = req.params;
 
@@ -246,20 +243,18 @@ class VideosController {
       return res.status(404).json({ message: "Video not found" });
     }
 
-    // Se enviou arquivo de transcrição manual
     if (req.file) {
-      console.log("Arquivo de transcrição manual recebido:", req.file.originalname);
+      
 
       let archivesID;
       if (updatedVideo?.ManualTranscriptionArchive) {
-        console.log("Atualizando transcrição existente...");
+        
         archivesID = await ManualTranscriptionArchiveController.updateArchives({
           id: updatedVideo.ManualTranscriptionArchive,
           ManualTranscriptionArchive: req.file,
           name: updatedVideo.title,
         });
       } else {
-        console.log("Criando nova transcrição...");
         archivesID = await ManualTranscriptionArchiveController.createArchives({
           ManualTranscriptionArchive: req.file,
           name: updatedVideo.title,
@@ -273,18 +268,12 @@ class VideosController {
       console.log("Nenhuma transcrição manual enviada.");
     }
 
-    console.log("==== FIM DO UPDATE DE VÍDEO ====");
     return res.status(200).json(updatedVideo.toObject());
   } catch (error) {
     console.error("Error updating video:", error);
     return res.status(500).json({ message: "Error updating video" });
   }
 }
-
-
-
-
-
 
   async Destroy(req, res) {
     try {
