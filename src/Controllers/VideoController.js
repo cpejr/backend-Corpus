@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import ArchivesController from "./ArchivesController.js";
 import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
-
+import ManualTranscriptionArchiveController from "./ManualTranscriptionArchiveController.js";
 import VideosModel from "../Models/VideosModel.js";
 import CountryModel from "../Models/CountryModel.js";
 import LanguageModel from "../Models/LanguageModel.js";
@@ -58,7 +58,7 @@ class VideosController {
       }
 
       const s3Key = await sendArchive(file.buffer, file.originalname);
-      console.log("Key AWS", s3Key);
+      
 
       //      const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
       const tempPath = path.join("./src/Utils/database", `input.${file.originalname}`);
@@ -67,7 +67,7 @@ class VideosController {
       await fs.promises.writeFile(tempPath, file.buffer);
 
       const thumbFile = await generateThumb(tempPath);
-      console.log("THUMNAIL", thumbFile);
+      
       if (!thumbFile) {
         await fs.promises.unlink(tempPath);
         return res.status(500).json({ message: "Error generating thumbnail!" });
@@ -160,7 +160,8 @@ class VideosController {
       const video = await VideosModel.find()
         .populate("archives")
         .populate("language")
-        .populate("country");
+        .populate("country")
+        .populate("ManualTranscriptionArchive");
 
       return res.status(200).json(video);
     } catch (error) {
@@ -217,7 +218,8 @@ class VideosController {
       const videos = await VideosModel.find(filter)
         .populate("archives")
         .populate("country")
-        .populate("language");
+        .populate("language")
+        .populate("ManualTranscriptionArchive");
 
       return res.status(200).json(videos);
     } catch (error) {
@@ -226,24 +228,63 @@ class VideosController {
   }
 
   async UpdateVideo(req, res) {
-    try {
-      console.log(req.body);
-      console.log(req.params);
-      const { id } = req.params;
-      const video = await VideosModel.findByIdAndUpdate(id, req.body, {
-        new: true,
-      }).populate("archives");
+  try {
+    console.log("==== INÍCIO DO UPDATE DE VÍDEO ====");
+    console.log("REQ.PARAMS:", req.params);
+    console.log("REQ.BODY:", req.body);
+    console.log("REQ.FILE:", req.file);
 
-      if (!video) {
-        return res.status(404).json({ message: "Video not found" });
+    const { id } = req.params;
+
+    const updatedVideo = await VideosModel.findByIdAndUpdate(id, req.body, {
+      new: true,
+    })
+      .populate("archives")
+      .populate("ManualTranscriptionArchive");
+
+    if (!updatedVideo) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+
+    // Se enviou arquivo de transcrição manual
+    if (req.file) {
+      console.log("Arquivo de transcrição manual recebido:", req.file.originalname);
+
+      let archivesID;
+      if (updatedVideo?.ManualTranscriptionArchive) {
+        console.log("Atualizando transcrição existente...");
+        archivesID = await ManualTranscriptionArchiveController.updateArchives({
+          id: updatedVideo.ManualTranscriptionArchive,
+          ManualTranscriptionArchive: req.file,
+          name: updatedVideo.title,
+        });
+      } else {
+        console.log("Criando nova transcrição...");
+        archivesID = await ManualTranscriptionArchiveController.createArchives({
+          ManualTranscriptionArchive: req.file,
+          name: updatedVideo.title,
+        });
       }
 
-      return res.status(200).json();
-    } catch (error) {
-      console.error("Error updating video:", error);
-      return res.status(500).json({ message: "Error updating video" });
+      updatedVideo.ManualTranscriptionArchive = archivesID;
+      await updatedVideo.save();
+      console.log("Transcrição manual associada ao vídeo:", archivesID);
+    } else {
+      console.log("Nenhuma transcrição manual enviada.");
     }
+
+    console.log("==== FIM DO UPDATE DE VÍDEO ====");
+    return res.status(200).json(updatedVideo.toObject());
+  } catch (error) {
+    console.error("Error updating video:", error);
+    return res.status(500).json({ message: "Error updating video" });
   }
+}
+
+
+
+
+
 
   async Destroy(req, res) {
     try {

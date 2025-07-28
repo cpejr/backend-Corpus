@@ -1,18 +1,40 @@
 import ArchivesModel from "../Models/ArchivesModel.js";
-import { deleteArchive, getArchive, getVideoUrl, sendArchive } from "../Config/Aws.js";
+import {
+  deleteArchive,
+  getArchive,
+  getVideoUrl,
+  sendArchive,
+} from "../Config/Aws.js";
 
 class ArchiveController {
   async createArchives(req, res) {
     try {
-      const { thumbFile, videoFile, name } = req;
+      // Compatível com uso de req.files via multer
+      const { name } = req.body;
+      const thumbFile = req.files?.thumbFile?.[0];
+      const videoFile = req.files?.videoFile?.[0];
+
+      if (!thumbFile || !videoFile || !name) {
+        return res.status(400).json({ message: "Missing required files or name" });
+      }
+
       const thumbName = `T-${name}.webp`;
       const videoName = `${name}-${videoFile.originalname}`;
+
       const videoKey = await sendArchive(videoFile.buffer, videoName);
-      const thumbKey = await sendArchive(thumbFile.buffer, thumbName, "image/webp");
+      const thumbKey = await sendArchive(
+        thumbFile.buffer,
+        thumbName,
+        "image/webp"
+      );
+
       const archives = await ArchivesModel.create({ videoKey, thumbKey, name });
-      return archives._id;
+
+      return res.status(201).json({ archiveId: archives._id });
     } catch (error) {
-      throw error;
+      return res
+        .status(500)
+        .json({ message: "Error while creating archive", error: error.message });
     }
   }
 
@@ -25,6 +47,7 @@ class ArchiveController {
       if (!archives) {
         throw new Error(`Archive with ID ${id} not found`);
       }
+
       const videoURL = await getVideoUrl(archives.videoKey);
       const thumbURL = await getVideoUrl(archives.thumbKey);
       const safeTitle = archives.name
@@ -41,15 +64,16 @@ class ArchiveController {
 
       return res.status(200).json(data);
     } catch (error) {
-      return res
-        .status(500)
-        .json({ message: "Error while fetching archive", error: error.message });
+      return res.status(500).json({
+        message: "Error while fetching archive",
+        error: error.message,
+      });
     }
   }
 
   async deleteArchives(req, res) {
     try {
-      const id = req;
+      const { id } = req.params;
 
       const archives = await ArchivesModel.findById(id);
 
@@ -61,21 +85,37 @@ class ArchiveController {
       await deleteArchive(archives.thumbKey);
 
       await ArchivesModel.findByIdAndDelete(id);
+
+      return res.status(200).json({ message: "Archive deleted successfully" });
     } catch (error) {
-      throw error;
+      return res.status(500).json({
+        message: "Error while deleting archive",
+        error: error.message,
+      });
     }
   }
 
   async updateArchives(req, res) {
     try {
-      const { id, thumbFile, videoFile, name } = req.body;
+      const { id } = req.body;
+      const thumbFile = req.files?.thumbFile?.[0];
+      const videoFile = req.files?.videoFile?.[0];
+      const { name } = req.body;
 
-      await ArchivesModel.deleteArchives(id);
-      const newArchives = await ArchivesModel.createArchives({ thumbFile, videoFile, name });
+      if (!thumbFile || !videoFile || !name || !id) {
+        return res.status(400).json({ message: "Missing required data" });
+      }
 
-      return newArchives;
+      await this.deleteArchives({ params: { id } }, res);
+
+      req.body.name = name;
+      req.files = { thumbFile: [thumbFile], videoFile: [videoFile] };
+      return await this.createArchives(req, res);
     } catch (error) {
-      throw error;
+      return res.status(500).json({
+        message: "Error while updating archive",
+        error: error.message,
+      });
     }
   }
 }
