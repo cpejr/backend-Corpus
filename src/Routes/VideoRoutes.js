@@ -14,7 +14,13 @@ VideoRoutes.post(
 );
 
 VideoRoutes.get("/", VideoController.GetVideo);
-VideoRoutes.put("/:id", VideoController.UpdateVideo);
+VideoRoutes.put(
+  "/:id",
+  verifyJWT,
+  upload.single("ManualTranscriptionArchive"), // <-- aqui o nome do campo do arquivo
+  VideoController.UpdateVideo
+);
+
 VideoRoutes.delete("/:id", VideoController.Destroy);
 VideoRoutes.get("/:data", VideoController.GetVideoByParameters);
 

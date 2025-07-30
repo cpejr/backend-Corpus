@@ -5,8 +5,8 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { v4 as uuidv4 } from "uuid";
 import { Buffer } from "buffer";
+import { Readable } from "stream";
 
 const region = process.env.AWS_BUCKET_REGION;
 const accessKeyId = process.env.AWS_ACCESS_KEY;
@@ -21,9 +21,19 @@ const s3 = new S3Client({
   },
 });
 
+// Função para limpar o nome do arquivo
+function sanitizeFileName(originalname) {
+  return originalname
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-zA-Z0-9.\-_]/g, "");
+}
+
 export async function sendArchive(buffer, originalname, mimetype) {
   try {
-    const key = `${Date.now()}-${originalname}`;
+    const safeName = sanitizeFileName(originalname);
+    const key = `${Date.now()}-${safeName}`;
 
     const params = {
       Bucket: bucketName,
@@ -32,6 +42,7 @@ export async function sendArchive(buffer, originalname, mimetype) {
       ContentType: mimetype,
     };
 
+    console.log("Enviando para S3 com chave:", key);
     await s3.send(new PutObjectCommand(params));
 
     return key;
@@ -48,7 +59,13 @@ export async function getArchive(key) {
   };
 
   const res = await s3.send(new GetObjectCommand(params));
-  return res.Body;
+
+  
+  if (res.Body instanceof Readable) {
+    return res.Body; 
+  } else {
+    return Readable.from(res.Body);
+  }
 }
 
 export async function getVideoUrl(key) {
@@ -74,4 +91,14 @@ export async function deleteArchive(key) {
     console.error(`Erro ao deletar a chave ${key} do S3:`, error);
     throw error;
   }
+}
+
+export async function getSignedUrlForFile(key, expiresIn = 3600) {
+  const command = new GetObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+  });
+
+  const url = await getSignedUrl(s3, command, { expiresIn });
+  return url;
 }
