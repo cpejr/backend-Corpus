@@ -10,6 +10,7 @@ import CountryRoutes from "./CountryRoutes.js";
 import LanguageRoutes from "./LanguageRoutes.js";
 
 import DownloadRoutes from "./DownloadRoutes.js";
+import TranscriptionRoutes from "./TranscriptionRoutes.js";
 
 const routes = express.Router();
 
@@ -23,5 +24,6 @@ routes.use("/archive", ArchiveRoutes);
 routes.use("/country", CountryRoutes);
 routes.use("/language", LanguageRoutes);
 routes.use("/download", DownloadRoutes);
+routes.use("/transcription", TranscriptionRoutes);
 
 export default routes;

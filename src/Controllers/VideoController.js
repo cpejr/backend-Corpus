@@ -8,6 +8,7 @@ import { convertToMinutes } from "../Utils/general/ConvertToMinutes.js";
 import VideosModel from "../Models/VideosModel.js";
 import CountryModel from "../Models/CountryModel.js";
 import LanguageModel from "../Models/LanguageModel.js";
+import TranscriptionModel from "../Models/TranscriptionModel.js";
 import { sendArchive } from "../Config/Aws.js";
 
 class VideosController {
@@ -79,7 +80,6 @@ class VideosController {
         name: safeTitle,
       });
 
-      
       const languageData = await LanguageModel.findById(language);
       if (!languageData) {
         return res.status(400).json({ message: "Invalid language ID" });
@@ -88,6 +88,10 @@ class VideosController {
 
       const transcription = await generateTranscription(tempPath, langValue, title);
 
+      const Transcription = await TranscriptionModel.create({
+        text: transcription.transcription || "Transcription not available",
+      });
+
       await fs.promises.unlink(tempPath).catch(console.error);
 
       const videoData = {
@@ -95,7 +99,7 @@ class VideosController {
         language,
         code,
         archives: archivesID,
-        transcription: transcription.transcription || "Transcription not available",
+        transcription: [Transcription._id],
 
         transcriptURL: transcription.transcriptURL,
         srtURL: transcription.srtURL,
