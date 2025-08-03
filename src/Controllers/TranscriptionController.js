@@ -3,7 +3,9 @@ import TranscriptionModel from "../Models/TranscriptionModel.js";
 class TranscriptionController {
   async createTranscription(req, res) {
     try {
-      const transcription = await TranscriptionModel.create(req.body);
+      const { text, key } = req.body; 
+
+      const transcription = await TranscriptionModel.create({ text, key });
       return res.status(200).json(transcription);
     } catch (error) {
       return res.status(500).json({ message: "Erro ao criar transcrição", error: error.message });
@@ -22,6 +24,7 @@ class TranscriptionController {
   async updateTranscription(req, res) {
     try {
       const { id } = req.params;
+
       const transcriptionUpdated = await TranscriptionModel.findByIdAndUpdate(id, req.body, {
         new: true,
       });
@@ -29,11 +32,9 @@ class TranscriptionController {
       if (!transcriptionUpdated) {
         return res.status(404).json({ message: "Transcrição não encontrada" });
       }
-      return res.status(200).json(transcription);
+      return res.status(200).json(transcriptionUpdated);
     } catch (error) {
-      return res
-        .status(500)
-        .json({ message: "Erro ao atualizar transcrição", error: error.message });
+      return res.status(500).json({ message: "Erro ao atualizar transcrição", error: error.message });
     }
   }
 

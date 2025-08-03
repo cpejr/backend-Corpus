@@ -164,7 +164,8 @@ class VideosController {
       const video = await VideosModel.find()
         .populate("archives")
         .populate("language")
-        .populate("country");
+        .populate("country")
+        .populate('transcription');
 
       return res.status(200).json(video);
     } catch (error) {

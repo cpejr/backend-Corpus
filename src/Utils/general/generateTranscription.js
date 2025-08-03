@@ -156,7 +156,14 @@ export async function generateTranscription(videoPath, language = "en-US", title
 
     audioPath = await extractAudio(videoPath);
 
+    console.log("Áudio extraído para:", audioPath);
+console.log("Tamanho do áudio:", fs.existsSync(audioPath) ? fs.statSync(audioPath).size : "Arquivo não existe");
+
+
     const cloudStorageUri = await uploadToBucket(audioPath, "corpusbucket01");
+    
+    console.log("URI no bucket:", cloudStorageUri);
+
 
     const config = {
       encoding: "FLAC",
@@ -178,6 +185,9 @@ export async function generateTranscription(videoPath, language = "en-US", title
     });
 
     const [response] = await operation.promise();
+
+    console.log("Resposta completa da API:", JSON.stringify(response, null, 2));
+
 
     if (!response.results || response.results.length === 0) {
       throw new Error("No transcription results returned");
