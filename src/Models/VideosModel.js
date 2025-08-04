@@ -62,11 +62,13 @@ const VideosSchema = new Schema(
       type: Date,
       required: true,
     },
-    transcription: {
-      type: String,
-      required: false,
-      trim: true,
-    },
+    transcription: 
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Transcription",
+        required: false,
+      },
+    
     videoKey: {
       type: String,
       required: true,

@@ -9,7 +9,6 @@ import {
 class ArchiveController {
   async createArchives(req, res) {
     try {
-      // Compatível com uso de req.files via multer
       const { name } = req.body;
       const thumbFile = req.files?.thumbFile?.[0];
       const videoFile = req.files?.videoFile?.[0];
@@ -71,20 +70,26 @@ class ArchiveController {
     }
   }
 
+  // 🔧 NOVO MÉTODO PARA USO INTERNO
+  async deleteArchiveById(id) {
+    const archives = await ArchivesModel.findById(id);
+
+    if (!archives) {
+      throw new Error(`Archive with ID ${id} not found`);
+    }
+
+    await deleteArchive(archives.videoKey);
+    await deleteArchive(archives.thumbKey);
+    await ArchivesModel.findByIdAndDelete(id);
+
+    return true;
+  }
+
+  // 🔁 MÉTODO PARA ROTAS EXPRESS (mantido)
   async deleteArchives(req, res) {
     try {
       const { id } = req.params;
-
-      const archives = await ArchivesModel.findById(id);
-
-      if (!archives) {
-        throw new Error(`Archive with ID ${id} not found`);
-      }
-
-      await deleteArchive(archives.videoKey);
-      await deleteArchive(archives.thumbKey);
-
-      await ArchivesModel.findByIdAndDelete(id);
+      await this.deleteArchiveById(id);
 
       return res.status(200).json({ message: "Archive deleted successfully" });
     } catch (error) {
@@ -117,6 +122,20 @@ class ArchiveController {
         error: error.message,
       });
     }
+  }
+
+  async createArchiveHelper({ thumbFile, videoFile, name }) {
+    if (!thumbFile || !videoFile || !name) throw new Error("Missing required files or name");
+
+    const thumbName = `T-${name}.webp`;
+    const videoName = `${name}-${videoFile.originalname}`;
+
+    const videoKey = await sendArchive(videoFile.buffer, videoName);
+    const thumbKey = await sendArchive(thumbFile.buffer, thumbName, "image/webp");
+
+    const archives = await ArchivesModel.create({ videoKey, thumbKey, name });
+
+    return archives._id;
   }
 }
 

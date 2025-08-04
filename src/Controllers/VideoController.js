@@ -9,8 +9,25 @@ import VideosModel from "../Models/VideosModel.js";
 import CountryModel from "../Models/CountryModel.js";
 import LanguageModel from "../Models/LanguageModel.js";
 import { sendArchive } from "../Config/Aws.js";
-
+import TranscriptionModel from "../Models/TranscriptionModel.js"
+import ArchivesModel from "../Models/ArchivesModel.js"
 class VideosController {
+  // Método estático para criar arquivo de archive (thumb + video)
+  static async createArchiveHelper({ thumbFile, videoFile, name }) {
+    if (!thumbFile || !videoFile || !name)
+      throw new Error("Missing required files or name");
+
+    const thumbName = `T-${name}.webp`;
+    const videoName = `${name}-${videoFile.originalname}`;
+
+    const videoKey = await sendArchive(videoFile.buffer, videoName);
+    const thumbKey = await sendArchive(thumbFile.buffer, thumbName, "image/webp");
+
+    const archive = await ArchivesModel.create({ videoKey, thumbKey, name });
+
+    return archive._id;
+  }
+
   async Create(req, res) {
     try {
       const {
@@ -48,76 +65,110 @@ class VideosController {
           missingFields,
         });
       }
+
       if (!file) {
         return res.status(400).json({ message: "Arquivo não enviado" });
       }
 
+      // Verifica se o código já está cadastrado
       const foundCode = await VideosModel.findOne({ code });
       if (foundCode) {
         return res.status(409).json({ message: "Code already registered!" });
       }
 
-      const s3Key = await sendArchive(file.buffer, file.originalname);
-      
-
-      //      const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
-      const tempPath = path.join("./src/Utils/database", `input.${file.originalname}`);
-      const tempDir = path.dirname(tempPath);
+      // Cria pasta temp se não existir
+      const tempDir = path.join(process.cwd(), "temp");
       await fs.promises.mkdir(tempDir, { recursive: true });
+
+      // Nome seguro para arquivo temporário
+      const safeFileName = file.originalname
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/[^a-zA-Z0-9.\-_]/g, "");
+
+      const tempPath = path.join(tempDir, safeFileName);
       await fs.promises.writeFile(tempPath, file.buffer);
 
+      // Envia o vídeo para o S3
+      const videoS3Key = await sendArchive(file.buffer, file.originalname, file.mimetype);
+      console.log("Key AWS vídeo:", videoS3Key);
+
+      // Gera thumbnail
       const thumbFile = await generateThumb(tempPath);
-      
       if (!thumbFile) {
         await fs.promises.unlink(tempPath);
         return res.status(500).json({ message: "Error generating thumbnail!" });
       }
+
+      // Cria arquivo na collection archives usando método estático
       const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
-      const archivesID = await ArchivesController.createArchives({
+      const archivesID = await VideosController.createArchiveHelper({
         thumbFile: thumbFile,
         videoFile: file,
         name: safeTitle,
       });
 
-      
+      // Busca o código da linguagem
       const languageData = await LanguageModel.findById(language);
       if (!languageData) {
+        await fs.promises.unlink(tempPath).catch(console.error);
         return res.status(400).json({ message: "Invalid language ID" });
       }
       const langValue = languageData.code || languageData.name;
 
-      const transcription = await generateTranscription(tempPath, langValue, title);
+      // Gera a transcrição (string)
+      const transcriptionResult = await generateTranscription(tempPath, langValue, title);
 
+      // Envia o arquivo de transcrição para o S3 (como .txt)
+      const transcriptionBuffer = Buffer.from(
+        transcriptionResult.transcription || "Transcription not available",
+        "utf-8"
+      );
+      const transcriptionS3Key = await sendArchive(
+        transcriptionBuffer,
+        `${safeTitle}.txt`,
+        "text/plain"
+      );
+      console.log("Key AWS transcrição:", transcriptionS3Key);
+
+      // Cria documento de transcrição no banco
+      const transcriptionDoc = await TranscriptionModel.create({
+        text: transcriptionResult.transcription || "Transcription not available",
+        Key: transcriptionS3Key,
+      });
+
+      // Apaga arquivo temporário
       await fs.promises.unlink(tempPath).catch(console.error);
 
+      // Monta objeto vídeo para salvar no banco
       const videoData = {
         title,
-        language,
+        language: [language],
         code,
         archives: archivesID,
-        transcription: transcription.transcription || "Transcription not available",
-
-        transcriptURL: transcription.transcriptURL,
-        srtURL: transcription.srtURL,
-
+        transcription: transcriptionDoc._id,
+        transcriptURL: transcriptionResult.transcriptURL,
+        srtURL: transcriptionResult.srtURL,
         duration: convertToMinutes(duration || 0),
-        birthday: birthday || new birthday(),
-        country,
+        birthday: birthday || new Date(),
+        country: Array.isArray(country) ? country : [country],
         totalParticipants: Number(totalParticipants),
         responsibles,
         context,
         ShortDescription,
-        videoKey: s3Key,
+        videoKey: videoS3Key,
       };
 
+      // Cria o vídeo no banco
       const video = await VideosModel.create(videoData);
 
       return res.status(201).json({
         message: "Video successfully created",
         video,
         thumbURL: thumbFile,
-        transcription: transcription.transcription || "Transcription not available",
-        transcriptURL: transcription.transcriptURL,
+        transcription: transcriptionResult.transcription || "Transcription not available",
+        transcriptURL: transcriptionResult.transcriptURL,
       });
     } catch (error) {
       console.error("Server error:", {
@@ -132,6 +183,9 @@ class VideosController {
       });
     }
   }
+
+
+
 
   async DownloadVideo(req, res) {
     try {
