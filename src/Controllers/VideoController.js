@@ -12,7 +12,7 @@ import { sendArchive } from "../Config/Aws.js";
 import TranscriptionModel from "../Models/TranscriptionModel.js"
 import ArchivesModel from "../Models/ArchivesModel.js"
 class VideosController {
-  // Método estático para criar arquivo de archive (thumb + video)
+  
   static async createArchiveHelper({ thumbFile, videoFile, name }) {
     if (!thumbFile || !videoFile || !name)
       throw new Error("Missing required files or name");
@@ -104,10 +104,11 @@ class VideosController {
       // Cria arquivo na collection archives usando método estático
       const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
       const archivesID = await VideosController.createArchiveHelper({
-        thumbFile: thumbFile,
+        thumbFile,
         videoFile: file,
         name: safeTitle,
       });
+
 
       // Busca o código da linguagem
       const languageData = await LanguageModel.findById(language);
@@ -215,7 +216,8 @@ class VideosController {
         .populate("archives")
         .populate("language")
         .populate("country")
-        .populate("ManualTranscriptionArchive");
+        .populate("ManualTranscriptionArchive")
+        .populate("transcription");
 
       return res.status(200).json(video);
     } catch (error) {
@@ -330,25 +332,47 @@ class VideosController {
 }
 
   async Destroy(req, res) {
-    try {
-      const { id } = req.params;
-      const video = await VideosModel.findById(id);
+  try {
+    const { id } = req.params;
+    console.log(`[Destroy] Recebido id: ${id}`);
 
-      if (!video) {
-        return res.status(404).json({ message: "Video not found" });
-      }
+    const video = await VideosModel.findById(id);
+    console.log("[Destroy] Vídeo buscado no banco:", video);
 
-      if (video.archives) {
-        await ArchivesController.deleteArchives(video.archives._id);
-      }
-
-      await VideosModel.findByIdAndDelete(id);
-      return res.status(200).json({ message: "Video successfully deleted!" });
-    } catch (error) {
-      console.error("Error deleting video:", error);
-      return res.status(500).json({ message: "Error deleting video" });
+    if (!video) {
+      console.log("[Destroy] Vídeo não encontrado.");
+      return res.status(404).json({ message: "Video not found" });
     }
+
+    if (video.archives) {
+      console.log("[Destroy] Chamando deleteArchives com id:", video.archives._id);
+      await ArchivesController.deleteArchives(
+        { params: { id: video.archives._id } },
+        {
+          status: (code) => {
+            console.log(`[deleteArchives] status chamado com código: ${code}`);
+            return {
+              json: (obj) => console.log("[deleteArchives] json chamado com:", obj),
+            };
+          },
+          json: (obj) => console.log("[deleteArchives] json chamado com:", obj),
+        }
+      );
+      console.log("[Destroy] deleteArchives finalizado");
+    } else {
+      console.log("[Destroy] Nenhum arquivo de archive associado.");
+    }
+
+    await VideosModel.findByIdAndDelete(id);
+    console.log("[Destroy] Vídeo deletado do banco");
+
+    return res.status(200).json({ message: "Video successfully deleted!" });
+  } catch (error) {
+    console.error("[Destroy] Error deleting video:", error);
+    return res.status(500).json({ message: "Error deleting video" });
   }
+}
+
 }
 
 export default new VideosController();
