@@ -124,19 +124,7 @@ class ArchiveController {
     }
   }
 
-  async createArchiveHelper({ thumbFile, videoFile, name }) {
-    if (!thumbFile || !videoFile || !name) throw new Error("Missing required files or name");
-
-    const thumbName = `T-${name}.webp`;
-    const videoName = `${name}-${videoFile.originalname}`;
-
-    const videoKey = await sendArchive(videoFile.buffer, videoName);
-    const thumbKey = await sendArchive(thumbFile.buffer, thumbName, "image/webp");
-
-    const archives = await ArchivesModel.create({ videoKey, thumbKey, name });
-
-    return archives._id;
-  }
+  
 }
 
 export default new ArchiveController();

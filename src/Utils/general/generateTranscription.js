@@ -169,9 +169,6 @@ export async function generateTranscription(videoPath, language = "en-US", title
       enableWordTimeOffsets: true,
     };
 
-
-    
-
     const [operation] = await speechClient.longRunningRecognize({
       audio: { uri: cloudStorageUri },
       config,
