@@ -9,6 +9,7 @@ import {
 class ArchiveController {
   async createArchives(req, res) {
     try {
+      // Compatível com uso de req.files via multer
       const { name } = req.body;
       const thumbFile = req.files?.thumbFile?.[0];
       const videoFile = req.files?.videoFile?.[0];
@@ -70,26 +71,20 @@ class ArchiveController {
     }
   }
 
-  // 🔧 NOVO MÉTODO PARA USO INTERNO
-  async deleteArchiveById(id) {
-    const archives = await ArchivesModel.findById(id);
-
-    if (!archives) {
-      throw new Error(`Archive with ID ${id} not found`);
-    }
-
-    await deleteArchive(archives.videoKey);
-    await deleteArchive(archives.thumbKey);
-    await ArchivesModel.findByIdAndDelete(id);
-
-    return true;
-  }
-
-  // 🔁 MÉTODO PARA ROTAS EXPRESS (mantido)
   async deleteArchives(req, res) {
     try {
       const { id } = req.params;
-      await this.deleteArchiveById(id);
+
+      const archives = await ArchivesModel.findById(id);
+
+      if (!archives) {
+        throw new Error(`Archive with ID ${id} not found`);
+      }
+
+      await deleteArchive(archives.videoKey);
+      await deleteArchive(archives.thumbKey);
+
+      await ArchivesModel.findByIdAndDelete(id);
 
       return res.status(200).json({ message: "Archive deleted successfully" });
     } catch (error) {
@@ -123,8 +118,6 @@ class ArchiveController {
       });
     }
   }
-
-  
 }
 
 export default new ArchiveController();
