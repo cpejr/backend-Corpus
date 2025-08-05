@@ -9,129 +9,187 @@ import VideosModel from "../Models/VideosModel.js";
 import CountryModel from "../Models/CountryModel.js";
 import LanguageModel from "../Models/LanguageModel.js";
 import { sendArchive } from "../Config/Aws.js";
-
+import TranscriptionModel from "../Models/TranscriptionModel.js"
+import ArchivesModel from "../Models/ArchivesModel.js"
 class VideosController {
+  
+  /*static async createArchiveHelper({ thumbFile, videoFile, name }) {
+    if (!thumbFile || !videoFile || !name)
+      throw new Error("Missing required files or name");
+
+    const thumbName = `T-${name}.webp`;
+    const videoName = `${name}-${videoFile.originalname}`;
+
+    const videoKey = await sendArchive(videoFile.buffer, videoName);
+    const thumbKey = await sendArchive(thumbFile.buffer, thumbName, "image/webp");
+
+    const archive = await ArchivesModel.create({ videoKey, thumbKey, name });
+
+    return archive._id;
+  }*/ //por algum motivo eu esqueci que eu podia criar dentro do proprio create
+
   async Create(req, res) {
-    try {
-      const {
-        title,
-        language,
-        code,
-        birthday,
-        duration,
-        country,
-        totalParticipants,
-        responsibles,
-        context,
-        ShortDescription,
-      } = req.body;
-      const file = req.file;
+  try {
+    const {
+      title,
+      language,
+      code,
+      birthday,
+      duration,
+      country,
+      totalParticipants,
+      responsibles,
+      context,
+      ShortDescription,
+    } = req.body;
+    const file = req.file;
 
-      const requiredFields = {
-        title: "Title",
-        language: "Language",
-        code: "Code",
-        country: "Country",
-        totalParticipants: "Total participants",
-        responsibles: "Responsibles",
-        context: "Context",
-        ShortDescription: "Short description",
-      };
+    const requiredFields = {
+      title: "Title",
+      language: "Language",
+      code: "Code",
+      country: "Country",
+      totalParticipants: "Total participants",
+      responsibles: "Responsibles",
+      context: "Context",
+      ShortDescription: "Short description",
+    };
 
-      const missingFields = Object.entries(requiredFields)
-        .filter(([field]) => !req.body[field])
-        .map(([_, name]) => name);
+    const missingFields = Object.entries(requiredFields)
+      .filter(([field]) => !req.body[field])
+      .map(([_, name]) => name);
 
-      if (missingFields.length > 0) {
-        return res.status(400).json({
-          message: "Missing required fields!",
-          missingFields,
-        });
-      }
-      if (!file) {
-        return res.status(400).json({ message: "Arquivo não enviado" });
-      }
-
-      const foundCode = await VideosModel.findOne({ code });
-      if (foundCode) {
-        return res.status(409).json({ message: "Code already registered!" });
-      }
-
-      const s3Key = await sendArchive(file.buffer, file.originalname);
-      
-
-      //      const videoPath = path.join("./src/Utils/database", `input.${dataType}`);
-      const tempPath = path.join("./src/Utils/database", `input.${file.originalname}`);
-      const tempDir = path.dirname(tempPath);
-      await fs.promises.mkdir(tempDir, { recursive: true });
-      await fs.promises.writeFile(tempPath, file.buffer);
-
-      const thumbFile = await generateThumb(tempPath);
-      
-      if (!thumbFile) {
-        await fs.promises.unlink(tempPath);
-        return res.status(500).json({ message: "Error generating thumbnail!" });
-      }
-      const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
-      const archivesID = await ArchivesController.createArchives({
-        thumbFile: thumbFile,
-        videoFile: file,
-        name: safeTitle,
-      });
-
-      
-      const languageData = await LanguageModel.findById(language);
-      if (!languageData) {
-        return res.status(400).json({ message: "Invalid language ID" });
-      }
-      const langValue = languageData.code || languageData.name;
-
-      const transcription = await generateTranscription(tempPath, langValue, title);
-
-      await fs.promises.unlink(tempPath).catch(console.error);
-
-      const videoData = {
-        title,
-        language,
-        code,
-        archives: archivesID,
-        transcription: transcription.transcription || "Transcription not available",
-
-        transcriptURL: transcription.transcriptURL,
-        srtURL: transcription.srtURL,
-
-        duration: convertToMinutes(duration || 0),
-        birthday: birthday || new birthday(),
-        country,
-        totalParticipants: Number(totalParticipants),
-        responsibles,
-        context,
-        ShortDescription,
-        videoKey: s3Key,
-      };
-
-      const video = await VideosModel.create(videoData);
-
-      return res.status(201).json({
-        message: "Video successfully created",
-        video,
-        thumbURL: thumbFile,
-        transcription: transcription.transcription || "Transcription not available",
-        transcriptURL: transcription.transcriptURL,
-      });
-    } catch (error) {
-      console.error("Server error:", {
-        message: error.message,
-        stack: error.stack,
-        body: req.body,
-      });
-      return res.status(500).json({
-        message: "Server error",
-        error: error.message,
-        details: error.errors,
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        message: "Missing required fields!",
+        missingFields,
       });
     }
+
+    if (!file) {
+      return res.status(400).json({ message: "Arquivo não enviado" });
+    }
+
+    const foundCode = await VideosModel.findOne({ code });
+    if (foundCode) {
+      return res.status(409).json({ message: "Code already registered!" });
+    }
+
+    const tempDir = path.join(process.cwd(), "temp");
+    await fs.promises.mkdir(tempDir, { recursive: true });
+
+    const safeFileName = file.originalname
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/[^a-zA-Z0-9.\-_]/g, "");
+
+    const tempPath = path.join(tempDir, safeFileName);
+    await fs.promises.writeFile(tempPath, file.buffer);
+
+    const videoS3Key = await sendArchive(file.buffer, file.originalname, file.mimetype);
+    console.log("Key AWS vídeo:", videoS3Key);
+
+    const thumbFile = await generateThumb(tempPath);
+    if (!thumbFile) {
+      await fs.promises.unlink(tempPath);
+      return res.status(500).json({ message: "Error generating thumbnail!" });
+    }
+
+    const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
+
+    async function createArchiveHelper({ thumbFile, videoFile, name }) { //tava dando erro na requisicao antes entao coloquei internamente 
+      if (!thumbFile || !videoFile || !name)                              //tive medo de dar problema em mais algum lugar no codigo
+        throw new Error("Missing required files or name");                
+
+      const thumbName = `T-${name}.webp`;
+      const videoName = `${name}-${videoFile.originalname}`;
+
+      const videoKey = await sendArchive(videoFile.buffer, videoName);
+      const thumbKey = await sendArchive(thumbFile.buffer, thumbName, "image/webp");
+
+      const archive = await ArchivesModel.create({ videoKey, thumbKey, name });
+
+      return archive._id;
+    }
+
+    const archivesID = await createArchiveHelper({
+      thumbFile,
+      videoFile: file,
+      name: safeTitle,
+    });
+
+    const languageData = await LanguageModel.findById(language);
+    if (!languageData) {
+      await fs.promises.unlink(tempPath).catch(console.error);
+      return res.status(400).json({ message: "Invalid language ID" });
+    }
+
+    const langValue = languageData.code || languageData.name;
+
+    const transcriptionResult = await generateTranscription(tempPath, langValue, title);
+
+    const transcriptionBuffer = Buffer.from(
+      transcriptionResult.transcription || "Transcription not available",
+      "utf-8"
+    );
+
+    const transcriptionS3Key = await sendArchive(
+      transcriptionBuffer,
+      `${safeTitle}.txt`,
+      "text/plain"
+    );
+    console.log("Key AWS transcrição:", transcriptionS3Key);
+
+    const transcriptionDoc = await TranscriptionModel.create({
+      text: transcriptionResult.transcription || "Transcription not available",
+      Key: transcriptionS3Key,
+    });
+
+    await fs.promises.unlink(tempPath).catch(console.error);
+
+    const videoData = {
+      title,
+      language: [language],
+      code,
+      archives: archivesID,
+      transcription: transcriptionDoc._id,
+      transcriptURL: transcriptionResult.transcriptURL,
+      srtURL: transcriptionResult.srtURL,
+      duration: convertToMinutes(duration || 0),
+      birthday: birthday || new Date(),
+      country: Array.isArray(country) ? country : [country],
+      totalParticipants: Number(totalParticipants),
+      responsibles,
+      context,
+      ShortDescription,
+      videoKey: videoS3Key,
+    };
+
+    const video = await VideosModel.create(videoData);
+
+    return res.status(201).json({
+      message: "Video successfully created",
+      video,
+      thumbURL: thumbFile,
+      transcription: transcriptionResult.transcription || "Transcription not available",
+      transcriptURL: transcriptionResult.transcriptURL,
+    });
+  } catch (error) {
+    console.error("Server error:", {
+      message: error.message,
+      stack: error.stack,
+      body: req.body,
+    });
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+      details: error.errors,
+    });
   }
+}
+
+
 
   async DownloadVideo(req, res) {
     try {
@@ -161,7 +219,8 @@ class VideosController {
         .populate("archives")
         .populate("language")
         .populate("country")
-        .populate("ManualTranscriptionArchive");
+        .populate("ManualTranscriptionArchive")
+        .populate("transcription");
 
       return res.status(200).json(video);
     } catch (error) {
@@ -276,25 +335,47 @@ class VideosController {
 }
 
   async Destroy(req, res) {
-    try {
-      const { id } = req.params;
-      const video = await VideosModel.findById(id);
+  try {
+    const { id } = req.params;
+    console.log(`[Destroy] Recebido id: ${id}`);
 
-      if (!video) {
-        return res.status(404).json({ message: "Video not found" });
-      }
+    const video = await VideosModel.findById(id);
+    console.log("[Destroy] Vídeo buscado no banco:", video);
 
-      if (video.archives) {
-        await ArchivesController.deleteArchives(video.archives._id);
-      }
-
-      await VideosModel.findByIdAndDelete(id);
-      return res.status(200).json({ message: "Video successfully deleted!" });
-    } catch (error) {
-      console.error("Error deleting video:", error);
-      return res.status(500).json({ message: "Error deleting video" });
+    if (!video) {
+      console.log("[Destroy] Vídeo não encontrado.");
+      return res.status(404).json({ message: "Video not found" });
     }
+
+    if (video.archives) {
+      console.log("[Destroy] Chamando deleteArchives com id:", video.archives._id);
+      await ArchivesController.deleteArchives(
+        { params: { id: video.archives._id } },
+        {
+          status: (code) => {
+            console.log(`[deleteArchives] status chamado com código: ${code}`);
+            return {
+              json: (obj) => console.log("[deleteArchives] json chamado com:", obj),
+            };
+          },
+          json: (obj) => console.log("[deleteArchives] json chamado com:", obj),
+        }
+      );
+      console.log("[Destroy] deleteArchives finalizado");
+    } else {
+      console.log("[Destroy] Nenhum arquivo de archive associado.");
+    }
+
+    await VideosModel.findByIdAndDelete(id);
+    console.log("[Destroy] Vídeo deletado do banco");
+
+    return res.status(200).json({ message: "Video successfully deleted!" });
+  } catch (error) {
+    console.error("[Destroy] Error deleting video:", error);
+    return res.status(500).json({ message: "Error deleting video" });
   }
+}
+
 }
 
 export default new VideosController();
