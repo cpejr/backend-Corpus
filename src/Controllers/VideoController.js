@@ -11,6 +11,8 @@ import LanguageModel from "../Models/LanguageModel.js";
 import { sendArchive } from "../Config/Aws.js";
 import TranscriptionModel from "../Models/TranscriptionModel.js"
 import ArchivesModel from "../Models/ArchivesModel.js"
+import mongoose from "mongoose";
+
 class VideosController {
   
   /*static async createArchiveHelper({ thumbFile, videoFile, name }) {
@@ -288,9 +290,30 @@ class VideosController {
 
   async UpdateVideo(req, res) {
   try {
-  
+    console.log("🔄 Iniciando atualização de vídeo...");
 
     const { id } = req.params;
+    console.log("🆔 ID recebido:", id);
+
+    if ('transcription' in req.body) {
+      console.log("⚠️ Removendo campo 'transcription' do corpo da requisição para evitar erro");
+      delete req.body.transcription;
+    }
+
+    console.log("📦 Dados recebidos no corpo da requisição (req.body):", req.body);
+
+    // Validação do campo transcription: se for inválido ou string "Transcription error", remove do body
+    if (req.body.transcription) {
+      const transcription = req.body.transcription;
+      const isValid = mongoose.Types.ObjectId.isValid(transcription);
+
+      console.log("🔍 Validando transcription:", transcription, "=> Válido?", isValid);
+
+      if (!isValid || transcription === "Transcription error") {
+        console.warn("⚠️ Transcription inválido ou erro detectado, removendo do body");
+        delete req.body.transcription;  // tira para evitar erro no update
+      }
+    }
 
     const updatedVideo = await VideosModel.findByIdAndUpdate(id, req.body, {
       new: true,
@@ -299,40 +322,64 @@ class VideosController {
       .populate("ManualTranscriptionArchive");
 
     if (!updatedVideo) {
+      console.warn("❌ Vídeo não encontrado com o ID:", id);
       return res.status(404).json({ message: "Video not found" });
     }
 
+    console.log("✅ Vídeo atualizado com sucesso:", updatedVideo);
+
     if (req.file) {
-      
+      console.log("📁 Arquivo de transcrição manual recebido:", req.file);
 
       let archivesID;
+
       if (updatedVideo?.ManualTranscriptionArchive) {
-        
+        console.log("✏️ Atualizando arquivo de transcrição manual existente. ID:", updatedVideo.ManualTranscriptionArchive);
+
         archivesID = await ManualTranscriptionArchiveController.updateArchives({
           id: updatedVideo.ManualTranscriptionArchive,
           ManualTranscriptionArchive: req.file,
           name: updatedVideo.title,
         });
+
+        console.log("✅ Arquivo de transcrição manual atualizado. Novo ID:", archivesID);
       } else {
+        console.log("🆕 Criando novo arquivo de transcrição manual...");
+
         archivesID = await ManualTranscriptionArchiveController.createArchives({
           ManualTranscriptionArchive: req.file,
           name: updatedVideo.title,
         });
+
+        console.log("✅ Novo arquivo de transcrição manual criado. ID:", archivesID);
+      }
+
+      // Verifica se archivesID é válido
+      if (
+        typeof archivesID === "string" &&
+        archivesID === "Transcription error"
+      ) {
+        console.error("❌ Erro ao salvar transcrição manual. ID inválido:", archivesID);
+        return res.status(400).json({ message: "Erro ao salvar transcrição manual." });
       }
 
       updatedVideo.ManualTranscriptionArchive = archivesID;
       await updatedVideo.save();
-      console.log("Transcrição manual associada ao vídeo:", archivesID);
+      console.log("💾 Transcrição manual associada ao vídeo com sucesso:", archivesID);
     } else {
-      console.log("Nenhuma transcrição manual enviada.");
+      console.log("ℹ️ Nenhum arquivo de transcrição manual enviado.");
     }
 
+    console.log("✅ Atualização finalizada. Retornando vídeo atualizado.");
     return res.status(200).json(updatedVideo.toObject());
   } catch (error) {
-    console.error("Error updating video:", error);
-    return res.status(500).json({ message: "Error updating video" });
+    console.error("❌ Erro ao atualizar vídeo:", error);
+    console.error("🧠 Stack do erro:", error.stack);
+    return res.status(500).json({ message: "Error updating video", error: error.message });
   }
 }
+
+
 
   async Destroy(req, res) {
   try {
