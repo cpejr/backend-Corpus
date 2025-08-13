@@ -288,9 +288,23 @@ class VideosController {
 
   async UpdateVideo(req, res) {
   try {
-  
-
     const { id } = req.params;
+
+    // Se country for enviado, transformar em array de IDs
+    if (req.body.country && Array.isArray(req.body.country)) {
+      req.body.country = req.body.country.map(c => {
+        if (typeof c === 'object') return c._id || c.value; // pega o id
+        return c; // se já for string/id
+      });
+    }
+
+    // Se language for enviado, também transformar
+    if (req.body.language && Array.isArray(req.body.language)) {
+      req.body.language = req.body.language.map(l => {
+        if (typeof l === 'object') return l._id || l.value;
+        return l;
+      });
+    }
 
     const updatedVideo = await VideosModel.findByIdAndUpdate(id, req.body, {
       new: true,
@@ -303,11 +317,8 @@ class VideosController {
     }
 
     if (req.file) {
-      
-
       let archivesID;
       if (updatedVideo?.ManualTranscriptionArchive) {
-        
         archivesID = await ManualTranscriptionArchiveController.updateArchives({
           id: updatedVideo.ManualTranscriptionArchive,
           ManualTranscriptionArchive: req.file,
@@ -333,6 +344,7 @@ class VideosController {
     return res.status(500).json({ message: "Error updating video" });
   }
 }
+
 
   async Destroy(req, res) {
   try {
