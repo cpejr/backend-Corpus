@@ -230,7 +230,7 @@ class VideosController {
   async GetVideoByParameters(req, res) {
     try {
       console.log(req.query);
-      const { totalParticipants, dates, duration, country, language } = req.query;
+      const { totalParticipants, birthday, duration, country, language } = req.query;
       let filter = {};
 
       if (totalParticipants) {
@@ -281,8 +281,8 @@ class VideosController {
         }
       } */
 
-      if (dates) {
-        filter.birthday = { $gte: new Date(dates) };
+      if (birthday) {
+        filter.birthday = { $gte: new Date(birthday) };
       }
 
       if (duration) {
@@ -294,6 +294,7 @@ class VideosController {
         .populate("country")
         .populate("language")
         .populate("ManualTranscriptionArchive");
+
       console.log("Filtros aplicados:", JSON.stringify(filter, null, 2));
 
       return res.status(200).json(videos);
