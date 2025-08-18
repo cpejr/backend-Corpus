@@ -282,11 +282,11 @@ class VideosController {
       } */
 
       if (birthday) {
-        filter.birthday = { $gte: new Date(birthday) };
+        filter.birthday = { $eq: new Date(birthday) };
       }
 
       if (duration) {
-        filter.duration = { $gte: Number(duration) };
+        filter.duration = { $eq: Number(duration) };
       }
 
       const videos = await VideosModel.find(filter)
