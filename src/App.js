@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import routes from "./Routes/index.js";
 import cors from "cors";
 import corsOptions from "./Config/cors.js";
-import bodyParser from "body-parser";
+
 import cookieParser from "cookie-parser";
 import { NotFoundError } from "./Errors/baseErrors.js";
 import path from "path";
@@ -13,9 +13,9 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
-app.use(bodyParser.json({ limit: "1000mb" }));
+app.use(express.json({ limit: "1000mb" }));
 app.use(express.urlencoded({ limit: "100mb", extended: true }));
-app.use(express.json());
+
 app.use(cors(corsOptions));
 app.use(cookieParser(process.env.COOKIE_SECRET));
 
