@@ -15,20 +15,7 @@ import mongoose from "mongoose";
 import ManualTranscriptionArchiveModel from "../Models/ManualTranscriptionArchiveModel.js";
 
 class VideosController {
-  /*static async createArchiveHelper({ thumbFile, videoFile, name }) {
-    if (!thumbFile || !videoFile || !name)
-      throw new Error("Missing required files or name");
-
-    const thumbName = `T-${name}.webp`;
-    const videoName = `${name}-${videoFile.originalname}`;
-
-    const videoKey = await sendArchive(videoFile.buffer, videoName);
-    const thumbKey = await sendArchive(thumbFile.buffer, thumbName, "image/webp");
-
-    const archive = await ArchivesModel.create({ videoKey, thumbKey, name });
-
-    return archive._id;
-  }*/ //por algum motivo eu esqueci que eu podia criar dentro do proprio create
+  
 
   async Create(req, res) {
     try {
