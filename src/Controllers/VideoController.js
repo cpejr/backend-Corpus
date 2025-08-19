@@ -8,9 +8,12 @@ import ManualTranscriptionArchiveController from "./ManualTranscriptionArchiveCo
 import VideosModel from "../Models/VideosModel.js";
 import CountryModel from "../Models/CountryModel.js";
 import LanguageModel from "../Models/LanguageModel.js";
-import { sendArchive } from "../Config/Aws.js";
+import { deleteArchive, sendArchive } from "../Config/Aws.js";
 import TranscriptionModel from "../Models/TranscriptionModel.js";
 import ArchivesModel from "../Models/ArchivesModel.js";
+import mongoose from "mongoose";
+import ManualTranscriptionArchiveModel from "../Models/ManualTranscriptionArchiveModel.js";
+
 class VideosController {
   async Create(req, res) {
     try {
@@ -83,9 +86,7 @@ class VideosController {
       const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
 
       async function createArchiveHelper({ thumbFile, videoFile, name }) {
-        //tava dando erro na requisicao antes entao coloquei internamente
         if (!thumbFile || !videoFile || !name)
-          //tive medo de dar problema em mais algum lugar no codigo
           throw new Error("Missing required files or name");
 
         const thumbName = `T-${name}.webp`;
@@ -112,7 +113,6 @@ class VideosController {
       }
 
       const langValue = languageData.code || languageData.name;
-
       const transcriptionResult = await generateTranscription(tempPath, langValue, title);
 
       const transcriptionBuffer = Buffer.from(
@@ -180,6 +180,8 @@ class VideosController {
       const { id } = req.params;
       const video = await VideosModel.findById(id);
 
+      if (!video) return res.status(404).json({ message: "Video not found" });
+
       const s3Stream = await getArchive(video.videoKey);
       res.set({
         "Content-Type": "video/mp4",
@@ -187,10 +189,6 @@ class VideosController {
       });
 
       s3Stream.pipe(res);
-
-      if (!video) {
-        return res.status(404).json({ message: "Video not found" });
-      }
     } catch (error) {
       console.error("Error downloading video:", error);
       return res.status(500).json({ message: "Internal server error" });
@@ -218,50 +216,33 @@ class VideosController {
       const { totalParticipants, birthday, duration, country, language } = req.query;
       let filter = {};
 
+      // ===== Filtros AWS Merge =====
       if (totalParticipants) {
         const [Min, Max] = totalParticipants.split("-");
-
         if (Min === "10" && Max === "mais") {
           filter.totalParticipants = { $gte: 11 };
         } else {
           const min = Number(Min);
           const max = Number(Max);
-          if (min && max) {
-            filter.totalParticipants = { $gte: min, $lte: max };
-          } else if (min) {
-            filter.totalParticipants = { $gte: min };
-          }
+          if (min && max) filter.totalParticipants = { $gte: min, $lte: max };
+          else if (min) filter.totalParticipants = { $gte: min };
         }
       }
 
       if (country && Array.isArray(country)) {
-        const countries = await CountryModel.find({
-          _id: { $in: country },
-        });
-        if (countries.length > 0) {
-          filter.country = { $in: countries.map((c) => c._id) };
-        } else {
-          return res.status(404).json({ message: "Países não encontrados." });
-        }
+        const countries = await CountryModel.find({ _id: { $in: country } });
+        if (countries.length > 0) filter.country = { $in: countries.map((c) => c._id) };
+        else return res.status(404).json({ message: "Países não encontrados." });
       }
+
       if (language && Array.isArray(language)) {
-        const languages = await LanguageModel.find({
-          _id: { $in: language },
-        });
-        if (languages.length > 0) {
-          filter.language = { $in: languages.map((l) => l._id) };
-        } else {
-          return res.status(404).json({ message: "Idiomas não encontrados." });
-        }
+        const languages = await LanguageModel.find({ _id: { $in: language } });
+        if (languages.length > 0) filter.language = { $in: languages.map((l) => l._id) };
+        else return res.status(404).json({ message: "Idiomas não encontrados." });
       }
 
-      if (birthday) {
-        filter.birthday = { $eq: new Date(birthday) };
-      }
-
-      if (duration) {
-        filter.duration = { $eq: Number(duration) };
-      }
+      if (birthday) filter.birthday = { $eq: new Date(birthday) };
+      if (duration) filter.duration = { $eq: Number(duration) };
 
       const videos = await VideosModel.find(filter)
         .populate("archives")
@@ -270,7 +251,6 @@ class VideosController {
         .populate("ManualTranscriptionArchive");
 
       console.log("Filtros aplicados:", JSON.stringify(filter, null, 2));
-
       return res.status(200).json(videos);
     } catch (error) {
       res.status(500).json({ message: "Not found", error: error.message });
@@ -279,20 +259,23 @@ class VideosController {
 
   async UpdateVideo(req, res) {
     try {
+      console.log("🔄 Iniciando atualização de vídeo...");
       const { id } = req.params;
+      console.log("🆔 ID recebido:", id);
 
-      if (req.body.country && Array.isArray(req.body.country)) {
-        req.body.country = req.body.country.map((c) => {
-          if (typeof c === "object") return c._id || c.value;
-          return c;
-        });
+      if ("transcription" in req.body) delete req.body.transcription;
+
+      if (req.body.transcription) {
+        const transcription = req.body.transcription;
+        const isValid = mongoose.Types.ObjectId.isValid(transcription);
+        if (!isValid || transcription === "Transcription error") delete req.body.transcription;
       }
 
+      if (req.body.country && Array.isArray(req.body.country)) {
+        req.body.country = req.body.country.map((c) => (typeof c === "object" ? c._id || c.value : c));
+      }
       if (req.body.language && Array.isArray(req.body.language)) {
-        req.body.language = req.body.language.map((l) => {
-          if (typeof l === "object") return l._id || l.value;
-          return l;
-        });
+        req.body.language = req.body.language.map((l) => (typeof l === "object" ? l._id || l.value : l));
       }
 
       const updatedVideo = await VideosModel.findByIdAndUpdate(id, req.body, {
@@ -301,9 +284,7 @@ class VideosController {
         .populate("archives")
         .populate("ManualTranscriptionArchive");
 
-      if (!updatedVideo) {
-        return res.status(404).json({ message: "Video not found" });
-      }
+      if (!updatedVideo) return res.status(404).json({ message: "Video not found" });
 
       if (req.file) {
         let archivesID;
@@ -322,15 +303,14 @@ class VideosController {
 
         updatedVideo.ManualTranscriptionArchive = archivesID;
         await updatedVideo.save();
-        console.log("Transcrição manual associada ao vídeo:", archivesID);
-      } else {
-        console.log("Nenhuma transcrição manual enviada.");
-      }
+        console.log("💾 Transcrição manual associada ao vídeo com sucesso:", archivesID);
+      } else console.log("ℹ️ Nenhum arquivo de transcrição manual enviado.");
 
+      console.log("✅ Atualização finalizada. Retornando vídeo atualizado.");
       return res.status(200).json(updatedVideo.toObject());
     } catch (error) {
-      console.error("Error updating video:", error);
-      return res.status(500).json({ message: "Error updating video" });
+      console.error("❌ Erro ao atualizar vídeo:", error);
+      return res.status(500).json({ message: "Error updating video", error: error.message });
     }
   }
 
@@ -342,32 +322,34 @@ class VideosController {
       const video = await VideosModel.findById(id);
       console.log("[Destroy] Vídeo buscado no banco:", video);
 
-      if (!video) {
-        console.log("[Destroy] Vídeo não encontrado.");
-        return res.status(404).json({ message: "Video not found" });
-      }
+      if (!video) return res.status(404).json({ message: "Video not found" });
+
+      const manualtranscription = video.ManualTranscriptionArchive;
 
       if (video.archives) {
         console.log("[Destroy] Chamando deleteArchives com id:", video.archives._id);
         await ArchivesController.deleteArchives(
           { params: { id: video.archives._id } },
           {
-            status: (code) => {
-              console.log(`[deleteArchives] status chamado com código: ${code}`);
-              return {
-                json: (obj) => console.log("[deleteArchives] json chamado com:", obj),
-              };
-            },
-            json: (obj) => console.log("[deleteArchives] json chamado com:", obj),
+            status: (code) => ({ json: (obj) => {} }),
+            json: (obj) => {},
           }
         );
         console.log("[Destroy] deleteArchives finalizado");
-      } else {
-        console.log("[Destroy] Nenhum arquivo de archive associado.");
+
+        await deleteArchive(video.videoKey);
       }
 
       await VideosModel.findByIdAndDelete(id);
       console.log("[Destroy] Vídeo deletado do banco");
+
+      if (manualtranscription) {
+        const manualtranscriptionarchive = await ManualTranscriptionArchiveModel.findById(manualtranscription);
+        if (manualtranscriptionarchive) {
+          await deleteArchive(manualtranscriptionarchive.key);
+          await ManualTranscriptionArchiveModel.findByIdAndDelete(manualtranscription);
+        }
+      }
 
       return res.status(200).json({ message: "Video successfully deleted!" });
     } catch (error) {
