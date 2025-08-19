@@ -12,21 +12,6 @@ import { sendArchive } from "../Config/Aws.js";
 import TranscriptionModel from "../Models/TranscriptionModel.js";
 import ArchivesModel from "../Models/ArchivesModel.js";
 class VideosController {
-  /*static async createArchiveHelper({ thumbFile, videoFile, name }) {
-    if (!thumbFile || !videoFile || !name)
-      throw new Error("Missing required files or name");
-
-    const thumbName = `T-${name}.webp`;
-    const videoName = `${name}-${videoFile.originalname}`;
-
-    const videoKey = await sendArchive(videoFile.buffer, videoName);
-    const thumbKey = await sendArchive(thumbFile.buffer, thumbName, "image/webp");
-
-    const archive = await ArchivesModel.create({ videoKey, thumbKey, name });
-
-    return archive._id;
-  }*/ //por algum motivo eu esqueci que eu podia criar dentro do proprio create
-
   async Create(req, res) {
     try {
       const {
@@ -269,17 +254,6 @@ class VideosController {
           return res.status(404).json({ message: "Idiomas não encontrados." });
         }
       }
-
-      /* if (language && Array.isArray(language)) {
-        const languages = await LanguageModel.find({
-          name: { $in: language.map((l) => new RegExp(l, "i")) 
-        });
-        if (languages.length > 0) {
-          filter.language = { $in: languages.map((l) => l._id) };
-        } else {
-          return res.status(404).json({ message: "Idiomas não encontrados." });
-        }
-      } */
 
       if (birthday) {
         filter.birthday = { $eq: new Date(birthday) };
