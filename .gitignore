@@ -3,5 +3,6 @@ node_modules/
 .env.development
 .env.production
 google.json
-.yarnrc.yml
 yarn.lock
+.yarnrc.yml
+
