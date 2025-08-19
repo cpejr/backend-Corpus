@@ -1,5 +1,7 @@
 import TranscriptionModel from "../Models/TranscriptionModel.js";
 
+import { getSignedUrlForFile } from "../Config/Aws.js";
+
 class TranscriptionController {
   async createTranscription(req, res) {
     try {
@@ -19,6 +21,21 @@ class TranscriptionController {
     } catch (error) {
       return res.status(500).json({ message: "Erro ao buscar transcrição", error: error.message });
     }
+  }
+
+  async getPreSignedTranscriptionUrl(req, res) {
+  try {
+    const { id } = req.params;
+    const transcription = await TranscriptionModel.findById(id);
+     if (!transcription || !transcription.Key) {
+      return res.status(404).json({ message: "Transcrição não encontrada" });
+    }
+    const signedUrl = await getSignedUrlForFile(transcription.Key, 3600);
+    return res.status(200).json({url: signedUrl});
+  
+  } catch (error) {
+    return res.status(500).json({ message: "Can't find Signed-Url for this File", error: error.message });
+  }
   }
 
   async updateTranscription(req, res) {
