@@ -3,9 +3,9 @@ import TranscriptionModel from "../Models/TranscriptionModel.js";
 class TranscriptionController {
   async createTranscription(req, res) {
     try {
-      const { text, key } = req.body; 
+      const { name, key } = req.body; 
 
-      const transcription = await TranscriptionModel.create({ text, key });
+      const transcription = await TranscriptionModel.create({  name, key });
       return res.status(200).json(transcription);
     } catch (error) {
       return res.status(500).json({ message: "Erro ao criar transcrição", error: error.message });

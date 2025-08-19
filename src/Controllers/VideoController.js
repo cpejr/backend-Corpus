@@ -128,8 +128,8 @@ class VideosController {
       console.log("Key AWS transcrição:", transcriptionS3Key);
 
       const transcriptionDoc = await TranscriptionModel.create({
-        text: transcriptionResult.transcription || "Transcription not available",
-        Key: transcriptionS3Key,
+       name: title || "Unnamed transcription",
+        Key: transcriptionResult.pdfS3Key || transcriptionS3Key, 
       });
 
       await fs.promises.unlink(tempPath).catch(console.error);
