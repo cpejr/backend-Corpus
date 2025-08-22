@@ -86,8 +86,7 @@ class VideosController {
       const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
 
       async function createArchiveHelper({ thumbFile, videoFile, name }) {
-        if (!thumbFile || !videoFile || !name)
-          throw new Error("Missing required files or name");
+        if (!thumbFile || !videoFile || !name) throw new Error("Missing required files or name");
 
         const thumbName = `T-${name}.webp`;
         const videoName = `${name}-${videoFile.originalname}`;
@@ -113,6 +112,29 @@ class VideosController {
       }
 
       const langValue = languageData.code || languageData.name;
+
+      const videoData = {
+        title,
+        language: [language],
+        code,
+        archives: archivesID,
+        transcription: null,
+        transcriptURL: null,
+        srtURL: null,
+        duration: convertToMinutes(duration || 0),
+        birthday: birthday || new Date(),
+        country: Array.isArray(country) ? country : [country],
+        totalParticipants: Number(totalParticipants),
+        responsibles,
+        context,
+        ShortDescription,
+        videoKey: videoS3Key,
+      };
+
+      const Video = await VideosModel.create(videoData);
+
+      console.log("video postado:", Video);
+
       const transcriptionResult = await generateTranscription(tempPath, langValue, title);
 
       const transcriptionBuffer = Buffer.from(
@@ -134,29 +156,20 @@ class VideosController {
 
       await fs.promises.unlink(tempPath).catch(console.error);
 
-      const videoData = {
-        title,
-        language: [language],
-        code,
-        archives: archivesID,
-        transcription: transcriptionDoc._id,
-        transcriptURL: transcriptionResult.transcriptURL,
-        srtURL: transcriptionResult.srtURL,
-        duration: convertToMinutes(duration || 0),
-        birthday: birthday || new Date(),
-        country: Array.isArray(country) ? country : [country],
-        totalParticipants: Number(totalParticipants),
-        responsibles,
-        context,
-        ShortDescription,
-        videoKey: videoS3Key,
-      };
-
-      const video = await VideosModel.create(videoData);
+      const videoUpdated = await VideosModel.findByIdAndUpdate(
+        Video._id,
+        {
+          transcription: transcriptionDoc._id,
+          transcriptURL: transcriptionResult.transcriptURL,
+          srtURL: transcriptionResult.srtURL,
+        },
+        { new: true }
+      );
+      console.log("video update:", videoUpdated);
 
       return res.status(201).json({
         message: "Video successfully created",
-        video,
+        videoUpdated,
         thumbURL: thumbFile,
         transcription: transcriptionResult.transcription || "Transcription not available",
         transcriptURL: transcriptionResult.transcriptURL,
@@ -272,10 +285,14 @@ class VideosController {
       }
 
       if (req.body.country && Array.isArray(req.body.country)) {
-        req.body.country = req.body.country.map((c) => (typeof c === "object" ? c._id || c.value : c));
+        req.body.country = req.body.country.map((c) =>
+          typeof c === "object" ? c._id || c.value : c
+        );
       }
       if (req.body.language && Array.isArray(req.body.language)) {
-        req.body.language = req.body.language.map((l) => (typeof l === "object" ? l._id || l.value : l));
+        req.body.language = req.body.language.map((l) =>
+          typeof l === "object" ? l._id || l.value : l
+        );
       }
 
       const updatedVideo = await VideosModel.findByIdAndUpdate(id, req.body, {
@@ -344,7 +361,9 @@ class VideosController {
       console.log("[Destroy] Vídeo deletado do banco");
 
       if (manualtranscription) {
-        const manualtranscriptionarchive = await ManualTranscriptionArchiveModel.findById(manualtranscription);
+        const manualtranscriptionarchive = await ManualTranscriptionArchiveModel.findById(
+          manualtranscription
+        );
         if (manualtranscriptionarchive) {
           await deleteArchive(manualtranscriptionarchive.key);
           await ManualTranscriptionArchiveModel.findByIdAndDelete(manualtranscription);
