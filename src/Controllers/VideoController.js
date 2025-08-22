@@ -115,22 +115,15 @@ class VideosController {
 
       const transcriptionResult = await generateTranscription(tempPath, langValue, title);
 
-      const transcriptionBuffer = Buffer.from(
-        transcriptionResult.transcription || "Transcription not available",
-        "utf-8"
-      );
-
-      const transcriptionS3Key = await sendArchive(
-        transcriptionBuffer,
-        `${safeTitle}.txt`,
-        "text/plain"
-      );
-      console.log("Key AWS transcrição:", transcriptionS3Key);
+     if(!transcriptionResult.pdfS3Key){
+      throw new Error("Error generating transcription");
+     }
 
       const transcriptionDoc = await TranscriptionModel.create({
        name: title || "Unnamed transcription",
-        Key: transcriptionResult.pdfS3Key || transcriptionS3Key, 
+        Key: transcriptionResult.pdfS3Key  
       });
+      console.log("Key AWS PDF transcrição:", transcriptionResult.pdfS3Key);
 
       await fs.promises.unlink(tempPath).catch(console.error);
 
@@ -140,7 +133,6 @@ class VideosController {
         code,
         archives: archivesID,
         transcription: transcriptionDoc._id,
-        transcriptURL: transcriptionResult.transcriptURL,
         srtURL: transcriptionResult.srtURL,
         duration: convertToMinutes(duration || 0),
         birthday: birthday || new Date(),
