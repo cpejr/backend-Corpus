@@ -9,10 +9,19 @@ class DownloadController {
   async downloadTranscript(req, res) {
     try {
       const filename = req.params.filename;
-      const safeTitle = filename
-        ? filename.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
-        : "transcricao";
+     
 
+     if (filename.endsWith(".pdf")) {
+      return res.status(410).json({
+        error: "PDF downloads moved to S3. Use transcription URL endpoint."
+      });
+     }
+
+     if (!filename.endsWith(".vtt") && !filename.endsWith(".srt")) {
+        return res.status(400).json({ error: "Only VTT/SRT files supported" });
+      }
+     
+      const safeTitle = filename.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
       const transcriptPath = path.join(__dirname, "../persistent_storage/transcripts", safeTitle);
 
       try {
@@ -22,17 +31,11 @@ class DownloadController {
         return res.status(404).json({ error: "File not found" });
       }
 
+      
       if (filename.endsWith(".vtt")) {
         res.setHeader("Content-Type", "text/vtt; charset=utf-8");
-        // Não envie Content-Disposition para VTT!
       } else if (filename.endsWith(".srt")) {
         res.setHeader("Content-Type", "text/plain; charset=utf-8");
-      } else if (filename.endsWith(".pdf")) {
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="${encodeURIComponent(safeTitle)}"`
-        );
       }
 
       const fileStream = fs.createReadStream(transcriptPath);
