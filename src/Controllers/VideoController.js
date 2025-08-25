@@ -118,13 +118,16 @@ class VideosController {
      if(!transcriptionResult.pdfS3Key){
       throw new Error("Error generating transcription");
      }
+     if (!transcriptionResult.vttS3Key){
+      throw new Error("Error generating VTT subtitles");
+     }
 
       const transcriptionDoc = await TranscriptionModel.create({
        name: title || "Unnamed transcription",
         Key: transcriptionResult.pdfS3Key  
       });
       console.log("Key AWS PDF transcrição:", transcriptionResult.pdfS3Key);
-
+      console.log("Key AWS VTT legendas:", transcriptionResult.vttS3Key); 
       await fs.promises.unlink(tempPath).catch(console.error);
 
       const videoData = {
@@ -133,7 +136,7 @@ class VideosController {
         code,
         archives: archivesID,
         transcription: transcriptionDoc._id,
-        srtURL: transcriptionResult.srtURL,
+        vttS3Key: transcriptionResult.vttS3Key,
         duration: convertToMinutes(duration || 0),
         birthday: birthday || new Date(),
         country: Array.isArray(country) ? country : [country],
@@ -151,7 +154,6 @@ class VideosController {
         video,
         thumbURL: thumbFile,
         transcription: transcriptionResult.transcription || "Transcription not available",
-        transcriptURL: transcriptionResult.transcriptURL,
       });
     } catch (error) {
       console.error("Server error:", {
