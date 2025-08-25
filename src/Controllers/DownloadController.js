@@ -10,17 +10,11 @@ class DownloadController {
     try {
       const filename = req.params.filename;
      
-
-     if (filename.endsWith(".pdf")) {
-      return res.status(410).json({
-        error: "PDF downloads moved to S3. Use transcription URL endpoint."
-      });
-     }
-
-     if (!filename.endsWith(".vtt") && !filename.endsWith(".srt")) {
-        return res.status(400).json({ error: "Only VTT/SRT files supported" });
+     if (filename.endsWith(".pdf") || filename.endsWith(".vtt")) {
+      return res.status(410).json({ 
+        error: "Files moved to S3. Use appropriate URL endpoints." 
+         });
       }
-     
       const safeTitle = filename.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
       const transcriptPath = path.join(__dirname, "../persistent_storage/transcripts", safeTitle);
 
