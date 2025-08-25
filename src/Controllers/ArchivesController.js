@@ -1,9 +1,11 @@
 import ArchivesModel from "../Models/ArchivesModel.js";
+import VideosModel from "../Models/VideosModel.js"
 import {
   deleteArchive,
   getArchive,
   getVideoUrl,
   sendArchive,
+  getSignedUrlForFile
 } from "../Config/Aws.js";
 
 class ArchiveController {
@@ -45,24 +47,26 @@ class ArchiveController {
       const archives = await ArchivesModel.findById(id);
 
       if (!archives) {
-        throw new Error(`Archive with ID ${id} not found`);
+        throw new Error(`Archive not found`);
       }
 
       const videoURL = await getVideoUrl(archives.videoKey);
       const thumbURL = await getVideoUrl(archives.thumbKey);
-      const safeTitle = archives.name
-        ? archives.name.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
-        : "transcricao";
-      const vttFileName = `${safeTitle}.vtt`;
-      const vttURL = `/transcripts/${vttFileName}`;
+      
+      const video = await VideosModel.findOne({ archives: id });
+      let vttURL = null;
 
-      const data = {
+      if (video && video.vttS3Key){
+        vttURL = await getSignedUrlForFile(video.vttS3Key, 3600);
+      }
+
+     
+
+      return res.status(200).json({
         videoURL,
         thumbURL,
         vttURL,
-      };
-
-      return res.status(200).json(data);
+      name: archives.name});
     } catch (error) {
       return res.status(500).json({
         message: "Error while fetching archive",
