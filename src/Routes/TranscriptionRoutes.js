@@ -11,4 +11,6 @@ TranscriptionRoutes.delete("/:id", TranscriptionController.deleteTranscription);
 
 TranscriptionRoutes.put("/:id", TranscriptionController.updateTranscription);
 
+TranscriptionRoutes.get("/url/:id", TranscriptionController.getTranscriptionUrl);
+
 export default TranscriptionRoutes;

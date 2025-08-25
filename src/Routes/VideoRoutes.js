@@ -23,4 +23,6 @@ VideoRoutes.put(
 
 VideoRoutes.delete("/:id", VideoController.Destroy);
 
+VideoRoutes.get("/vtt/:id", VideoController.getVTTUrl);
+
 export default VideoRoutes;
