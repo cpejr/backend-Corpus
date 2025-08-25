@@ -23,7 +23,7 @@ class TranscriptionController {
     }
   }
 
-  async getPreSignedTranscriptionUrl(req, res) {
+  async getTranscriptionUrl(req, res) {
   try {
     const { id } = req.params;
     const transcription = await TranscriptionModel.findById(id);
