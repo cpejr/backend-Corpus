@@ -138,24 +138,21 @@ async function saveSRTFile(subtitles, title) {
   return srtPath;
 }
 
-export async function generateTranscription(videoPath, language = "en-US", title) {
-  
+export async function generateTranscription(videoPath, language = "en-US", title, totalParticipants) {
   let audioPath;
 
   try {
     if (!videoPath || !fs.existsSync(videoPath)) {
       throw new Error("Invalid video path");
     }
+
     const safeTitle = title
       ? title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
       : "transcricao";
 
-      const languageCode = normalizeLanguageCode(language);
-  
-
+    const languageCode = normalizeLanguageCode(language);
 
     audioPath = await extractAudio(videoPath);
-
     const cloudStorageUri = await uploadToBucket(audioPath, "corpusbucket01");
 
     const config = {
@@ -167,6 +164,8 @@ export async function generateTranscription(videoPath, language = "en-US", title
       enableWordConfidence: true,
       model: "default",
       enableWordTimeOffsets: true,
+      enableSpeakerDiarization: true,              // 👈 adicionado
+      diarizationSpeakerCount: totalParticipants, // 👈 adicionado
     };
 
     const [operation] = await speechClient.longRunningRecognize({
@@ -184,34 +183,69 @@ export async function generateTranscription(videoPath, language = "en-US", title
     const subtitles = [];
     let subtitleIndex = 1;
 
+    // junta todas as palavras com timestamps e falantes
+    let allWords = [];
     for (const result of response.results) {
       const alternative = result.alternatives[0];
-      const words = alternative.words;
-
-      if (!words || words.length === 0) continue;
-
-      const chunkSize = 5;
-      for (let i = 0; i < words.length; i += chunkSize) {
-        const chunk = words.slice(i, i + chunkSize);
-        const text = chunk.map((w) => w.word).join(" ");
-
-        const start = chunk[0].startTime;
-        const end = chunk[chunk.length - 1].endTime;
-
-        const formatTime = (time) => {
-          const seconds = parseFloat(time.seconds || 0) + (time.nanos || 0) / 1e9;
-          const date = new Date(0);
-          date.setSeconds(seconds);
-          return date.toISOString().substr(11, 12).replace(".", ",");
-        };
-
-        subtitles.push(
-          `${subtitleIndex++}\n${formatTime(start)} --> ${formatTime(end)}\n${text}\n`
-        );
-
-        transcription += `${text} `;
+      if (alternative.words && alternative.words.length > 0) {
+        allWords = allWords.concat(alternative.words);
       }
     }
+
+    // ordenar cronologicamente
+    allWords.sort((a, b) => {
+      const aSec = Number(a.startTime?.seconds || 0) + Number(a.startTime?.nanos || 0) / 1e9;
+      const bSec = Number(b.startTime?.seconds || 0) + Number(b.startTime?.nanos || 0) / 1e9;
+      return aSec - bSec;
+    });
+
+    let currentChunk = [];
+    let currentSpeaker = null;
+
+    const processChunk = (chunk, speakerTag) => {
+      const text = chunk.map((w) => w.word).join(" ");
+      const start = chunk[0].startTime;
+      const end = chunk[chunk.length - 1].endTime;
+      const speakerLabel = `Falante ${speakerTag || 1}`;
+
+      const formatTime = (time) => {
+        if (!time) return "00:00:00,000";
+        const seconds = parseFloat(time.seconds || 0) + (time.nanos || 0) / 1e9;
+        const date = new Date(0);
+        date.setSeconds(seconds);
+        return date.toISOString().substr(11, 12).replace(".", ",");
+      };
+
+      subtitles.push(
+        `${subtitleIndex}\n${formatTime(start)} --> ${formatTime(end)}\n${speakerLabel}: ${text}\n`
+      );
+
+      transcription += `${formatTime(start)} --> ${formatTime(end)}\n${speakerLabel}: ${text}\n`;
+      subtitleIndex++;
+    };
+
+    for (let i = 0; i < allWords.length; i++) {
+      const word = allWords[i];
+      const speakerTag = word.speakerTag || currentSpeaker || 1; 
+      const shouldBreakChunk =
+        (currentSpeaker !== null && currentSpeaker !== speakerTag) || currentChunk.length >= 5;
+
+      if (shouldBreakChunk && currentChunk.length > 0) {
+        processChunk(currentChunk, currentSpeaker);
+        currentChunk = [];
+      }
+
+      if (currentChunk.length === 0) {
+        currentSpeaker = speakerTag;
+      }
+
+      currentChunk.push(word);
+    }
+
+    if (currentChunk.length > 0) {
+      processChunk(currentChunk, currentSpeaker);
+    }
+
 
     const transcriptPath = await saveTranscriptToFile(
       transcription,
