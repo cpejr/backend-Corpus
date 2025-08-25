@@ -1,11 +1,13 @@
 import TranscriptionModel from "../Models/TranscriptionModel.js";
 
+import { getSignedUrlForFile } from "../Config/Aws.js";
+
 class TranscriptionController {
   async createTranscription(req, res) {
     try {
-      const { text, key } = req.body; 
+      const { name, key } = req.body; 
 
-      const transcription = await TranscriptionModel.create({ text, key });
+      const transcription = await TranscriptionModel.create({  name, key });
       return res.status(200).json(transcription);
     } catch (error) {
       return res.status(500).json({ message: "Erro ao criar transcrição", error: error.message });
@@ -19,6 +21,21 @@ class TranscriptionController {
     } catch (error) {
       return res.status(500).json({ message: "Erro ao buscar transcrição", error: error.message });
     }
+  }
+
+  async getTranscriptionUrl(req, res) {
+  try {
+    const { id } = req.params;
+    const transcription = await TranscriptionModel.findById(id);
+     if (!transcription || !transcription.Key) {
+      return res.status(404).json({ message: "Transcrição não encontrada" });
+    }
+    const signedUrl = await getSignedUrlForFile(transcription.Key, 3600);
+    return res.status(200).json({url: signedUrl});
+  
+  } catch (error) {
+    return res.status(500).json({ message: "Can't find Signed-Url for this File", error: error.message });
+  }
   }
 
   async updateTranscription(req, res) {
