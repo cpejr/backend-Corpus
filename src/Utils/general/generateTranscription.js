@@ -7,7 +7,7 @@ import { dirname } from "path";
 import { SpeechClient } from "@google-cloud/speech";
 import { Storage } from "@google-cloud/storage";
 import PDFDocument from "pdfkit";
-import { convertSRTtoVTT } from "./convertSrtToVtt.js";
+import { sendArchive } from "../../Config/Aws.js"
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -92,50 +92,39 @@ async function uploadToBucket(filePath, bucketName) {
   }
 }
 
-async function saveTranscriptToFile(transcription, videoPath, languageCode, title) {
-  const transcriptsDir = path.join(__dirname, "../../persistent_storage/transcripts");
-
-  if (!fs.existsSync(transcriptsDir)) {
-    fs.mkdirSync(transcriptsDir, { recursive: true });
-  }
-
+async function createPDFInMemory(transcription, languageCode, title) {
   const safeTitle = title
     ? title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
     : "transcricao";
 
-  const transcriptPath = path.join(transcriptsDir, `${safeTitle}.pdf`);
-
-  const doc = new PDFDocument({ margin: 50 });
-  const writeStream = fs.createWriteStream(transcriptPath);
-  doc.pipe(writeStream);
-
-  doc.fontSize(16).text(`Transcrição: ${safeTitle}`, { align: "left" });
-  doc.moveDown();
-  doc.fontSize(12).text(`Gerada em: ${new Date().toLocaleString()}`);
-  doc.text(`Idioma: ${languageCode}`);
-  doc.moveDown().text("----------------------------------------");
-  doc.moveDown().fontSize(12).text(transcription, { align: "left" });
-
-  doc.end();
-
   return new Promise((resolve, reject) => {
-    writeStream.on("finish", () => resolve(transcriptPath));
-    writeStream.on("error", reject);
+    const doc = new PDFDocument({ margin: 50 });
+    const chunks = [];
+
+    
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    doc.fontSize(16).text(`Transcrição: ${safeTitle}`, { align: "left" });
+    doc.moveDown();
+    doc.fontSize(12).text(`Gerada em: ${new Date().toLocaleString()}`);
+    doc.text(`Idioma: ${languageCode}`);
+    doc.moveDown().text("----------------------------------------");
+    doc.moveDown().fontSize(12).text(transcription, { align: "left" });
+
+    doc.end();
   });
 }
-async function saveSRTFile(subtitles, title) {
-  const transcriptsDir = path.join(__dirname, "../../persistent_storage/transcripts");
 
-  if (!fs.existsSync(transcriptsDir)) {
-    fs.mkdirSync(transcriptsDir, { recursive: true });
+function createVTTInMemory(subtitles){
+  let vttContent = "WEBVTT\n\n";
+
+  for (const subtitle of subtitles){
+    vttContent += `${subtitle}\n\n`;
+    
   }
-
-  const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
-  const srtPath = path.join(transcriptsDir, `${safeTitle}.srt`);
-
-  await fs.promises.writeFile(srtPath, subtitles.join("\n"), "utf8");
-
-  return srtPath;
+  return Buffer.from(vttContent, 'utf-8');
 }
 
 export async function generateTranscription(videoPath, language = "en-US", title, totalParticipants) {
@@ -208,19 +197,18 @@ export async function generateTranscription(videoPath, language = "en-US", title
       const end = chunk[chunk.length - 1].endTime;
       const speakerLabel = `Falante ${speakerTag || 1}`;
 
-      const formatTime = (time) => {
-        if (!time) return "00:00:00,000";
-        const seconds = parseFloat(time.seconds || 0) + (time.nanos || 0) / 1e9;
-        const date = new Date(0);
-        date.setSeconds(seconds);
-        return date.toISOString().substr(11, 12).replace(".", ",");
-      };
+        const formatTimeVTT = (time) => {
+          const seconds = parseFloat(time.seconds || 0) + (time.nanos || 0) / 1e9;
+          const date = new Date(0);
+          date.setSeconds(seconds);
+          return date.toISOString().substr(11, 12);
+        };
 
       subtitles.push(
-        `${subtitleIndex}\n${formatTime(start)} --> ${formatTime(end)}\n${speakerLabel}: ${text}\n`
+        `${subtitleIndex}\n${formatTimeVTT(start)} --> ${formatTimeVTT(end)}\n${speakerLabel}: ${text}\n`
       );
 
-      transcription += `${formatTime(start)} --> ${formatTime(end)}\n${speakerLabel}: ${text}\n`;
+      transcription += `${formatTimeVTT(start)} --> ${formatTimeVTT(end)}\n${speakerLabel}: ${text}\n`;
       subtitleIndex++;
     };
 
@@ -247,29 +235,19 @@ export async function generateTranscription(videoPath, language = "en-US", title
     }
 
 
-    const transcriptPath = await saveTranscriptToFile(
-      transcription,
-      videoPath,
-      languageCode,
-      title
-    );
-    const srtPath = await saveSRTFile(subtitles, safeTitle);
-    const vttPath = path.join(path.dirname(srtPath), `${safeTitle}.vtt`);
+    const vttBuffer = createVTTInMemory(subtitles);
+    const vttS3Key = await sendArchive(vttBuffer, `${safeTitle}.vtt`, "text/vtt");
 
-    convertSRTtoVTT(srtPath, vttPath);
-
-    const vttURL = `/transcripts/${safeTitle}.vtt`;
+    const pdfBuffer = await createPDFInMemory(transcription, languageCode, safeTitle);
+    const pdfS3Key = await sendArchive(pdfBuffer, `${safeTitle}.pdf`, "application/pdf");
+    
 
     return {
       success: true,
       transcription: transcription.trim(),
-      transcriptPath,
-      transcriptURL: `/transcripts/${path.basename(transcriptPath)}`,
-      srtPath,
-      srtURL: `/transcripts/${path.basename(srtPath)}`,
-      vttURL,
       language: languageCode,
-      transcriptName: path.basename(transcriptPath),
+     pdfS3Key,
+     vttS3Key,
     };
   } catch (error) {
     console.error("Transcription error:", error);
@@ -277,7 +255,7 @@ export async function generateTranscription(videoPath, language = "en-US", title
       success: false,
       error: error.message,
       transcription: "Transcription error",
-      transcriptPath: null,
+    
     };
   } finally {
     if (audioPath && fs.existsSync(audioPath)) {

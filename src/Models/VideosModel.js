@@ -71,7 +71,11 @@ const VideosSchema = new Schema(
     
     videoKey: {
       type: String,
-      required: true,
+      required: false,
+    },
+    vttS3Key: {
+      type: String, 
+      required: false,
     },
     ManualTranscriptionArchive: {
       type: Schema.Types.ObjectId,

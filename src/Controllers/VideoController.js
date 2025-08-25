@@ -8,7 +8,7 @@ import ManualTranscriptionArchiveController from "./ManualTranscriptionArchiveCo
 import VideosModel from "../Models/VideosModel.js";
 import CountryModel from "../Models/CountryModel.js";
 import LanguageModel from "../Models/LanguageModel.js";
-import { deleteArchive, sendArchive } from "../Config/Aws.js";
+import { deleteArchive, sendArchive, getSignedUrlForFile } from "../Config/Aws.js";
 import TranscriptionModel from "../Models/TranscriptionModel.js";
 import ArchivesModel from "../Models/ArchivesModel.js";
 import mongoose from "mongoose";
@@ -113,25 +113,21 @@ class VideosController {
       }
 
       const langValue = languageData.code || languageData.name;
-      const transcriptionResult = await generateTranscription(tempPath, langValue, title);
+      const transcriptionResult = await generateTranscription(tempPath, langValue, title, totalParticipants);
 
-      const transcriptionBuffer = Buffer.from(
-        transcriptionResult.transcription || "Transcription not available",
-        "utf-8"
-      );
-
-      const transcriptionS3Key = await sendArchive(
-        transcriptionBuffer,
-        `${safeTitle}.txt`,
-        "text/plain"
-      );
-      console.log("Key AWS transcrição:", transcriptionS3Key);
+     if(!transcriptionResult.pdfS3Key){
+      throw new Error("Error generating transcription");
+     }
+     if (!transcriptionResult.vttS3Key){
+      throw new Error("Error generating VTT subtitles");
+     }
 
       const transcriptionDoc = await TranscriptionModel.create({
-        text: transcriptionResult.transcription || "Transcription not available",
-        Key: transcriptionS3Key,
+       name: title || "Unnamed transcription",
+        Key: transcriptionResult.pdfS3Key  
       });
-
+      console.log("Key AWS PDF transcrição:", transcriptionResult.pdfS3Key);
+      console.log("Key AWS VTT legendas:", transcriptionResult.vttS3Key); 
       await fs.promises.unlink(tempPath).catch(console.error);
 
       const videoData = {
@@ -140,8 +136,7 @@ class VideosController {
         code,
         archives: archivesID,
         transcription: transcriptionDoc._id,
-        transcriptURL: transcriptionResult.transcriptURL,
-        srtURL: transcriptionResult.srtURL,
+        vttS3Key: transcriptionResult.vttS3Key,
         duration: convertToMinutes(duration || 0),
         birthday: birthday || new Date(),
         country: Array.isArray(country) ? country : [country],
@@ -159,7 +154,6 @@ class VideosController {
         video,
         thumbURL: thumbFile,
         transcription: transcriptionResult.transcription || "Transcription not available",
-        transcriptURL: transcriptionResult.transcriptURL,
       });
     } catch (error) {
       console.error("Server error:", {
@@ -207,6 +201,26 @@ class VideosController {
       return res.status(200).json(video);
     } catch (error) {
       return res.status(500).json({ message: "Not found", error: error.message });
+    }
+  }
+
+  async getVTTUrl(req, res) {
+    try{
+      const { id } = req.params;
+      const video = await VideosModel.findById(id);
+      if(!video){
+        return res.status(404).json({message: "Video not found"});
+      }
+      if(!video.vttS3Key){
+        return res.status(404).json({message: "VTT Subtitles not found"});
+      }
+      const signedUrl = await getSignedUrlForFile(video.vttS3Key, 3600);
+      return res.status(200).json({url: signedUrl});
+    } catch (error) {
+      return res.status(500).json({
+        message:"Could not generate VTT URL",
+        error: error.message
+      });
     }
   }
 
