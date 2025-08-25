@@ -8,7 +8,7 @@ import ManualTranscriptionArchiveController from "./ManualTranscriptionArchiveCo
 import VideosModel from "../Models/VideosModel.js";
 import CountryModel from "../Models/CountryModel.js";
 import LanguageModel from "../Models/LanguageModel.js";
-import { sendArchive } from "../Config/Aws.js";
+import { sendArchive, getSignedUrlForFile } from "../Config/Aws.js";
 import TranscriptionModel from "../Models/TranscriptionModel.js";
 import ArchivesModel from "../Models/ArchivesModel.js";
 class VideosController {
@@ -203,6 +203,26 @@ class VideosController {
       return res.status(200).json(video);
     } catch (error) {
       return res.status(500).json({ message: "Not found", error: error.message });
+    }
+  }
+
+  async getVTTUrl(req, res) {
+    try{
+      const { id } = req.params;
+      const video = await VideosModel.findById(id);
+      if(!video){
+        return res.status(404).json({message: "Video not found"});
+      }
+      if(!video.vttS3Key){
+        return res.status(404).json({message: "VTT Subtitles not found"});
+      }
+      const signedUrl = await getSignedUrlForFile(video.vttS3Key, 3600);
+      return res.status(200).json({url: signedUrl});
+    } catch (error) {
+      return res.status(500).json({
+        message:"Could not generate VTT URL",
+        error: error.message
+      });
     }
   }
 
