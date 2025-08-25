@@ -8,7 +8,7 @@ import ArchiveRoutes from "./ArchivesRoutes.js";
 import ManualTranscriptionArchiveRoutes from "./ManualTranscriptionRoutes.js";
 import CountryRoutes from "./CountryRoutes.js";
 import LanguageRoutes from "./LanguageRoutes.js";
-
+import TranscriptionRoutes from "./TranscriptionRoutes.js" ;
 import DownloadRoutes from "./DownloadRoutes.js";
 
 const routes = express.Router();
@@ -23,5 +23,5 @@ routes.use("/manualTranscription", ManualTranscriptionArchiveRoutes);
 routes.use("/country", CountryRoutes);
 routes.use("/language", LanguageRoutes);
 routes.use("/download", DownloadRoutes);
-
+routes.use("/transcription" , TranscriptionRoutes)
 export default routes;
