@@ -140,6 +140,7 @@ class VideosController {
       thumbURL: thumbFile,
     });
 
+    //teste para o pull request
     setImmediate(async () => {
       try {
         const transcriptionResult = await generateTranscription(
