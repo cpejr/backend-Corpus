@@ -147,22 +147,43 @@ export async function generateTranscription(
   title,
   totalParticipants
 ) {
+  console.log("🎬 [TRANSCRIPTION] Starting transcription process...");
+  console.log("🎬 [TRANSCRIPTION] Input parameters:", {
+    videoPath,
+    languages,
+    title,
+    totalParticipants
+  });
+  
   let audioPath;
   try {
     if (!videoPath || !fs.existsSync(videoPath)) {
+      console.error("❌ [TRANSCRIPTION] Invalid video path:", videoPath);
       throw new Error("Invalid video path");
     }
+    console.log("✅ [TRANSCRIPTION] Video file exists:", videoPath);
 
     const safeTitle = title
       ? title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
       : "transcricao";
-
+    console.log("📝 [TRANSCRIPTION] Safe title:", safeTitle);
     const langList = normalizeLanguageList(languages);
     const primaryLang = langList[0];
     const altLangs = langList.slice(1);
+    console.log("🌍 [TRANSCRIPTION] Language processing:", {
+      original: languages,
+      normalized: langList,
+      primary: primaryLang,
+      alternatives: altLangs
+    });
 
+    console.log("🎧 [TRANSCRIPTION] Starting audio extraction...");
     audioPath = await extractAudio(videoPath);
+    console.log("✅ [TRANSCRIPTION] Audio extracted to:", audioPath);
+    
+    console.log("☁️ [TRANSCRIPTION] Uploading to Google Cloud Storage...");
     const cloudStorageUri = await uploadToBucket(audioPath, "corpusbucket01");
+    console.log("✅ [TRANSCRIPTION] Uploaded to:", cloudStorageUri);
 
     const config = {
       encoding: "FLAC",
@@ -177,22 +198,30 @@ export async function generateTranscription(
       enableSpeakerDiarization: true,
       diarizationSpeakerCount: totalParticipants,
     };
+    console.log("⚙️ [TRANSCRIPTION] Speech-to-Text config:", config);
 
+    console.log("🚀 [TRANSCRIPTION] Starting Google Speech-to-Text recognition...");
     const [operation] = await speechClient.longRunningRecognize({
       audio: { uri: cloudStorageUri },
       config,
     });
+    console.log("⏳ [TRANSCRIPTION] Waiting for operation to complete...");
     const [response] = await operation.promise();
+    console.log("✅ [TRANSCRIPTION] Speech recognition completed!");
 
+    console.log("📊 [TRANSCRIPTION] Response results count:", response.results?.length || 0);
     if (!response.results || response.results.length === 0) {
+      console.error("❌ [TRANSCRIPTION] No transcription results returned");
       throw new Error("No transcription results returned");
     }
 
+    console.log("🔍 [TRANSCRIPTION] Processing words from results...");
     const allWords = [];
     for (const result of response.results) {
-      const resultLang = result.languageCode || primaryLang;
+      const resultLang = result.languageCode || primaryLang; 
       const alternative = result.alternatives?.[0];
       if (alternative?.words?.length) {
+        console.log(`🔍 [TRANSCRIPTION] Result language: ${resultLang}, words: ${alternative.words.length}`);
         for (const w of alternative.words) {
           allWords.push({
             ...w,
@@ -201,6 +230,8 @@ export async function generateTranscription(
         }
       }
     }
+    console.log("📊 [TRANSCRIPTION] Total words collected:", allWords.length);
+
     allWords.sort((a, b) => {
       const aSec =
         Number(a.startTime?.seconds || 0) +
@@ -267,25 +298,32 @@ export async function generateTranscription(
       processChunk(currentChunk, currentSpeaker, currentLang);
     }
 
+    console.log("📝 [TRANSCRIPTION] Creating VTT subtitles...");
     const vttBuffer = createVTTInMemory(cues);
+    console.log("☁️ [TRANSCRIPTION] Uploading VTT to S3...");
     const vttS3Key = await sendArchive(
       vttBuffer,
       `${safeTitle}.vtt`,
       "text/vtt"
     );
+    console.log("✅ [TRANSCRIPTION] VTT uploaded with key:", vttS3Key);
 
+    console.log("📝 [TRANSCRIPTION] Creating PDF transcription...");
     const pdfBuffer = await createPDFInMemory(transcription.trim(), safeTitle);
+    console.log("☁️ [TRANSCRIPTION] Uploading PDF to S3...");
     const pdfS3Key = await sendArchive(
       pdfBuffer,
       `${safeTitle}.pdf`,
       "application/pdf"
     );
+    console.log("✅ [TRANSCRIPTION] PDF uploaded with key:", pdfS3Key);
 
     const languagesDetected = Array.from(
       new Set(response.results.map((r) => r.languageCode).filter(Boolean))
     );
+    console.log("🌍 [TRANSCRIPTION] Languages detected:", languagesDetected);
 
-    return {
+    const result = {
       success: true,
       transcription: transcription.trim(),
       languagesRequested: langList,
@@ -293,13 +331,19 @@ export async function generateTranscription(
       pdfS3Key,
       vttS3Key,
     };
+    console.log("✅ [TRANSCRIPTION] Process completed successfully!");
+    console.log("📊 [TRANSCRIPTION] Final result:", result);
+    return result;
   } catch (error) {
-    console.error("Transcription error:", error);
-    return {
+    console.error("❌ [TRANSCRIPTION] Transcription error:", error);
+    console.error("❌ [TRANSCRIPTION] Error stack:", error.stack);
+    const errorResult = {
       success: false,
       error: error.message,
       transcription: "Transcription error",
     };
+    console.log("❌ [TRANSCRIPTION] Returning error result:", errorResult);
+    return errorResult;
   } finally {
     if (audioPath && fs.existsSync(audioPath)) {
       try {
