@@ -7,7 +7,7 @@ import { dirname } from "path";
 import { SpeechClient } from "@google-cloud/speech";
 import { Storage } from "@google-cloud/storage";
 import PDFDocument from "pdfkit";
-import { sendArchive } from "../../Config/Aws.js"
+import { sendArchive } from "../../Config/Aws.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -47,21 +47,33 @@ const languageMap = {
 
 function normalizeLanguageCode(language) {
   if (!language) return "en-US";
-
   const normalized = language
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "");
+  return languageMap[normalized] || language;
+}
 
-  return languageMap[normalized] || "en-US";
+function normalizeLanguageList(languages) {
+  const list = Array.isArray(languages) ? languages : [languages];
+  // remove falsy, normaliza, remove duplicadas mantendo ordem
+  const seen = new Set();
+  const out = [];
+  for (const l of list) {
+    const code = normalizeLanguageCode(l);
+    if (code && !seen.has(code)) {
+      seen.add(code);
+      out.push(code);
+    }
+  }
+  return out.length ? out : ["en-US"];
 }
 
 async function extractAudio(videoPath, outputFormat = "flac") {
   if (!fs.existsSync(videoPath)) {
     throw new Error(`Video file not found: ${videoPath}`);
   }
-
   return new Promise((resolve, reject) => {
     const absoluteVideoPath = path.resolve(videoPath);
     const audioPath = absoluteVideoPath.replace(/\.[^/.]+$/, `.${outputFormat}`);
@@ -92,7 +104,7 @@ async function uploadToBucket(filePath, bucketName) {
   }
 }
 
-async function createPDFInMemory(transcription, languageCode, title) {
+async function createPDFInMemory(transcription, title) {
   const safeTitle = title
     ? title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
     : "transcricao";
@@ -100,16 +112,13 @@ async function createPDFInMemory(transcription, languageCode, title) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50 });
     const chunks = [];
-
-    
-    doc.on('data', chunk => chunks.push(chunk));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
 
     doc.fontSize(16).text(`Transcrição: ${safeTitle}`, { align: "left" });
     doc.moveDown();
     doc.fontSize(12).text(`Gerada em: ${new Date().toLocaleString()}`);
-    doc.text(`Idioma: ${languageCode}`);
     doc.moveDown().text("----------------------------------------");
     doc.moveDown().fontSize(12).text(transcription, { align: "left" });
 
@@ -117,146 +126,231 @@ async function createPDFInMemory(transcription, languageCode, title) {
   });
 }
 
-function createVTTInMemory(subtitles){
-  let vttContent = "WEBVTT\n\n";
-
-  for (const subtitle of subtitles){
-    vttContent += `${subtitle}\n\n`;
-    
+function createVTTInMemory(cues) {
+  let vtt = "WEBVTT\n\n";
+  for (const cue of cues) {
+    vtt += `${cue.index}\n${cue.start} --> ${cue.end}\n${cue.text}\n\n`;
   }
-  return Buffer.from(vttContent, 'utf-8');
+  return Buffer.from(vtt, "utf-8");
 }
 
-export async function generateTranscription(videoPath, language = "en-US", title, totalParticipants) {
-  let audioPath;
+function formatTimeVTT(time) {
+  const seconds =
+    parseFloat(time?.seconds || 0) + (Number(time?.nanos || 0) || 0) / 1e9;
+  const date = new Date(0);
+  date.setSeconds(seconds);
+  return date.toISOString().substr(11, 12); // HH:MM:SS.mmm
+}
 
+export async function generateTranscription(
+  videoPath,
+  languages = "en-US",
+  title,
+  totalParticipants
+) {
+  console.log("🎬 [TRANSCRIPTION] Starting transcription process...");
+  console.log("🎬 [TRANSCRIPTION] Input parameters:", {
+    videoPath,
+    languages,
+    title,
+    totalParticipants
+  });
+  
+  let audioPath;
   try {
     if (!videoPath || !fs.existsSync(videoPath)) {
+      console.error("❌ [TRANSCRIPTION] Invalid video path:", videoPath);
       throw new Error("Invalid video path");
     }
+    console.log("✅ [TRANSCRIPTION] Video file exists:", videoPath);
 
     const safeTitle = title
       ? title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "")
       : "transcricao";
+    console.log("📝 [TRANSCRIPTION] Safe title:", safeTitle);
 
-    const languageCode = normalizeLanguageCode(language);
+    // <<<<<< NOVO: múltiplos idiomas candidatos >>>>>>
+    const langList = normalizeLanguageList(languages);
+    const primaryLang = langList[0];
+    const altLangs = langList.slice(1);
+    console.log("🌍 [TRANSCRIPTION] Language processing:", {
+      original: languages,
+      normalized: langList,
+      primary: primaryLang,
+      alternatives: altLangs
+    });
 
+    console.log("🎧 [TRANSCRIPTION] Starting audio extraction...");
     audioPath = await extractAudio(videoPath);
+    console.log("✅ [TRANSCRIPTION] Audio extracted to:", audioPath);
+    
+    console.log("☁️ [TRANSCRIPTION] Uploading to Google Cloud Storage...");
     const cloudStorageUri = await uploadToBucket(audioPath, "corpusbucket01");
+    console.log("✅ [TRANSCRIPTION] Uploaded to:", cloudStorageUri);
 
     const config = {
       encoding: "FLAC",
       sampleRateHertz: 16000,
-      languageCode: languageCode,
+      languageCode: primaryLang,
+      // permite detecção de idioma por resultado/trecho
+      ...(altLangs.length ? { alternativeLanguageCodes: altLangs } : {}),
       enableAutomaticPunctuation: true,
       audioChannelCount: 1,
       enableWordConfidence: true,
       model: "default",
       enableWordTimeOffsets: true,
-      enableSpeakerDiarization: true,              // 👈 adicionado
-      diarizationSpeakerCount: totalParticipants, // 👈 adicionado
+      enableSpeakerDiarization: true,
+      diarizationSpeakerCount: totalParticipants,
     };
+    console.log("⚙️ [TRANSCRIPTION] Speech-to-Text config:", config);
 
+    console.log("🚀 [TRANSCRIPTION] Starting Google Speech-to-Text recognition...");
     const [operation] = await speechClient.longRunningRecognize({
       audio: { uri: cloudStorageUri },
       config,
     });
-
+    console.log("⏳ [TRANSCRIPTION] Waiting for operation to complete...");
     const [response] = await operation.promise();
+    console.log("✅ [TRANSCRIPTION] Speech recognition completed!");
 
+    console.log("📊 [TRANSCRIPTION] Response results count:", response.results?.length || 0);
     if (!response.results || response.results.length === 0) {
+      console.error("❌ [TRANSCRIPTION] No transcription results returned");
       throw new Error("No transcription results returned");
     }
 
-    let transcription = "";
-    const subtitles = [];
-    let subtitleIndex = 1;
-
-    // junta todas as palavras com timestamps e falantes
-    let allWords = [];
+    // Vamos coletar as PALAVRAS preservando o idioma estimado de cada RESULT.
+    console.log("🔍 [TRANSCRIPTION] Processing words from results...");
+    const allWords = [];
     for (const result of response.results) {
-      const alternative = result.alternatives[0];
-      if (alternative.words && alternative.words.length > 0) {
-        allWords = allWords.concat(alternative.words);
+      const resultLang = result.languageCode || primaryLang; // idioma previsto p/ este trecho
+      const alternative = result.alternatives?.[0];
+      if (alternative?.words?.length) {
+        console.log(`🔍 [TRANSCRIPTION] Result language: ${resultLang}, words: ${alternative.words.length}`);
+        for (const w of alternative.words) {
+          allWords.push({
+            ...w,
+            _lang: resultLang,
+          });
+        }
       }
     }
+    console.log("📊 [TRANSCRIPTION] Total words collected:", allWords.length);
 
-    // ordenar cronologicamente
+    // Ordena cronologicamente (só por garantia)
     allWords.sort((a, b) => {
-      const aSec = Number(a.startTime?.seconds || 0) + Number(a.startTime?.nanos || 0) / 1e9;
-      const bSec = Number(b.startTime?.seconds || 0) + Number(b.startTime?.nanos || 0) / 1e9;
+      const aSec =
+        Number(a.startTime?.seconds || 0) +
+        Number(a.startTime?.nanos || 0) / 1e9;
+      const bSec =
+        Number(b.startTime?.seconds || 0) +
+        Number(b.startTime?.nanos || 0) / 1e9;
       return aSec - bSec;
     });
 
+    let transcription = "";
+    const cues = [];
+    let subtitleIndex = 1;
+
     let currentChunk = [];
     let currentSpeaker = null;
+    let currentLang = null;
 
-    const processChunk = (chunk, speakerTag) => {
+    const processChunk = (chunk, speakerTag, langTag) => {
+      if (!chunk.length) return;
       const text = chunk.map((w) => w.word).join(" ");
       const start = chunk[0].startTime;
       const end = chunk[chunk.length - 1].endTime;
+      const startStr = formatTimeVTT(start);
+      const endStr = formatTimeVTT(end);
       const speakerLabel = `Falante ${speakerTag || 1}`;
+      const langLabel = langTag || primaryLang;
 
-        const formatTimeVTT = (time) => {
-          const seconds = parseFloat(time.seconds || 0) + (time.nanos || 0) / 1e9;
-          const date = new Date(0);
-          date.setSeconds(seconds);
-          return date.toISOString().substr(11, 12);
-        };
-
-      subtitles.push(
-        `${subtitleIndex}\n${formatTimeVTT(start)} --> ${formatTimeVTT(end)}\n${speakerLabel}: ${text}\n`
-      );
-
-      transcription += `${formatTimeVTT(start)} --> ${formatTimeVTT(end)}\n${speakerLabel}: ${text}\n`;
+      const line = `${speakerLabel} [${langLabel}]: ${text}`;
+      cues.push({
+        index: subtitleIndex,
+        start: startStr,
+        end: endStr,
+        text: line,
+      });
+      transcription += `${startStr} --> ${endStr}\n${line}\n`;
       subtitleIndex++;
     };
 
     for (let i = 0; i < allWords.length; i++) {
-      const word = allWords[i];
-      const speakerTag = word.speakerTag || currentSpeaker || 1; 
-      const shouldBreakChunk =
-        (currentSpeaker !== null && currentSpeaker !== speakerTag) || currentChunk.length >= 5;
+      const w = allWords[i];
+      const speakerTag = w.speakerTag || currentSpeaker || 1;
+      const langTag = w._lang || currentLang || primaryLang;
 
-      if (shouldBreakChunk && currentChunk.length > 0) {
-        processChunk(currentChunk, currentSpeaker);
+      const shouldBreak =
+        (currentSpeaker !== null && currentSpeaker !== speakerTag) ||
+        (currentLang !== null && currentLang !== langTag) ||
+        currentChunk.length >= 5;
+
+      if (shouldBreak && currentChunk.length) {
+        processChunk(currentChunk, currentSpeaker, currentLang);
         currentChunk = [];
       }
 
       if (currentChunk.length === 0) {
         currentSpeaker = speakerTag;
+        currentLang = langTag;
       }
 
-      currentChunk.push(word);
+      currentChunk.push(w);
     }
 
-    if (currentChunk.length > 0) {
-      processChunk(currentChunk, currentSpeaker);
+    if (currentChunk.length) {
+      processChunk(currentChunk, currentSpeaker, currentLang);
     }
 
+    console.log("📝 [TRANSCRIPTION] Creating VTT subtitles...");
+    const vttBuffer = createVTTInMemory(cues);
+    console.log("☁️ [TRANSCRIPTION] Uploading VTT to S3...");
+    const vttS3Key = await sendArchive(
+      vttBuffer,
+      `${safeTitle}.vtt`,
+      "text/vtt"
+    );
+    console.log("✅ [TRANSCRIPTION] VTT uploaded with key:", vttS3Key);
 
-    const vttBuffer = createVTTInMemory(subtitles);
-    const vttS3Key = await sendArchive(vttBuffer, `${safeTitle}.vtt`, "text/vtt");
+    console.log("📝 [TRANSCRIPTION] Creating PDF transcription...");
+    const pdfBuffer = await createPDFInMemory(transcription.trim(), safeTitle);
+    console.log("☁️ [TRANSCRIPTION] Uploading PDF to S3...");
+    const pdfS3Key = await sendArchive(
+      pdfBuffer,
+      `${safeTitle}.pdf`,
+      "application/pdf"
+    );
+    console.log("✅ [TRANSCRIPTION] PDF uploaded with key:", pdfS3Key);
 
-    const pdfBuffer = await createPDFInMemory(transcription, languageCode, safeTitle);
-    const pdfS3Key = await sendArchive(pdfBuffer, `${safeTitle}.pdf`, "application/pdf");
-    
+    // idiomas que o STT efetivamente detectou nos results
+    const languagesDetected = Array.from(
+      new Set(response.results.map((r) => r.languageCode).filter(Boolean))
+    );
+    console.log("🌍 [TRANSCRIPTION] Languages detected:", languagesDetected);
 
-    return {
+    const result = {
       success: true,
       transcription: transcription.trim(),
-      language: languageCode,
-     pdfS3Key,
-     vttS3Key,
+      languagesRequested: langList,
+      languagesDetected,
+      pdfS3Key,
+      vttS3Key,
     };
+    console.log("✅ [TRANSCRIPTION] Process completed successfully!");
+    console.log("📊 [TRANSCRIPTION] Final result:", result);
+    return result;
   } catch (error) {
-    console.error("Transcription error:", error);
-    return {
+    console.error("❌ [TRANSCRIPTION] Transcription error:", error);
+    console.error("❌ [TRANSCRIPTION] Error stack:", error.stack);
+    const errorResult = {
       success: false,
       error: error.message,
       transcription: "Transcription error",
-    
     };
+    console.log("❌ [TRANSCRIPTION] Returning error result:", errorResult);
+    return errorResult;
   } finally {
     if (audioPath && fs.existsSync(audioPath)) {
       try {
