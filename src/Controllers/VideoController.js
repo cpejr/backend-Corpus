@@ -134,46 +134,46 @@ class VideosController {
     const Video = await VideosModel.create(videoData);
     console.log("video postado:", Video);
 
-    const transcriptionResult = await generateTranscription(
-      tempPath,
-      langValue,
-      title,
-      totalParticipants
-    );
-
-    if (!transcriptionResult.pdfS3Key) {
-      throw new Error("Error generating transcription");
-    }
-    if (!transcriptionResult.vttS3Key) {
-      throw new Error("Error generating VTT subtitles");
-    }
-
-    const transcriptionDoc = await TranscriptionModel.create({
-      name: title || "Unnamed transcription",
-      Key: transcriptionResult.pdfS3Key,
+    res.status(201).json({
+      message: "Video successfully created",
+      video: Video,
+      thumbURL: thumbFile,
     });
 
-    console.log("Key AWS PDF transcrição:", transcriptionResult.pdfS3Key);
-    console.log("Key AWS VTT legendas:", transcriptionResult.vttS3Key);
+    setImmediate(async () => {
+      try {
+        const transcriptionResult = await generateTranscription(
+          tempPath,
+          langValue,
+          title,
+          totalParticipants
+        );
 
-    await fs.promises.unlink(tempPath).catch(console.error);
+        if (transcriptionResult.pdfS3Key && transcriptionResult.vttS3Key) {
+          const transcriptionDoc = await TranscriptionModel.create({
+            name: title || "Unnamed transcription",
+            Key: transcriptionResult.pdfS3Key,
+          });
 
-    const videoUpdated = await VideosModel.findByIdAndUpdate(
-      Video._id,
-      {
-        transcription: transcriptionDoc._id,
-        transcriptURL: transcriptionResult.transcriptURL,
-        srtURL: transcriptionResult.srtURL,
-      },
-      { new: true }
-    );
-    console.log("video update:", videoUpdated);
+          console.log("Key AWS PDF transcrição:", transcriptionResult.pdfS3Key);
+          console.log("Key AWS VTT legendas:", transcriptionResult.vttS3Key);
 
-    return res.status(201).json({
-      message: "Video successfully created",
-      videoUpdated,
-      thumbURL: thumbFile,
-      transcription: transcriptionResult.transcription || "Transcription not available",
+          await VideosModel.findByIdAndUpdate(Video._id, {
+            transcription: transcriptionDoc._id,
+            transcriptURL: transcriptionResult.transcriptURL,
+            srtURL: transcriptionResult.srtURL,
+            vttS3Key: transcriptionResult.vttS3Key,
+          });
+
+          console.log("Background transcription completed for video:", Video._id);
+        } else {
+          console.error("Background transcription failed for video:", Video._id);
+        }
+      } catch (error) {
+        console.error("Background transcription error for video:", Video._id, error);
+      } finally {
+        await fs.promises.unlink(tempPath).catch(console.error);
+      }
     });
   } catch (error) {
     console.error("Server error:", {
