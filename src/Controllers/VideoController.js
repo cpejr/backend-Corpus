@@ -277,8 +277,8 @@ class VideosController {
         else return res.status(404).json({ message: "Idiomas não encontrados." });
       }
 
-      if (birthday) filter.birthday = { $eq: new Date(birthday) };
-      if (duration) filter.duration = { $eq: Number(duration) };
+      if (birthday) filter.birthday = { $gte: new Date(birthday) };
+      if (duration) filter.duration = { $gte: Number(duration) };
 
       const videos = await VideosModel.find(filter)
         .populate("archives")
