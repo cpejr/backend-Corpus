@@ -69,10 +69,7 @@ const VideosSchema = new Schema(
         required: false,
       },
     
-    videoKey: {
-      type: String,
-      required: false,
-    },
+
     vttS3Key: {
       type: String, 
       required: false,

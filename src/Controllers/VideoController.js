@@ -128,7 +128,7 @@ class VideosController {
       responsibles,
       context,
       ShortDescription,
-      videoKey: videoS3Key,
+
     };
 
     const Video = await VideosModel.create(videoData);
@@ -198,7 +198,10 @@ class VideosController {
 
       if (!video) return res.status(404).json({ message: "Video not found" });
 
-      const s3Stream = await getArchive(video.videoKey);
+      const archives = await ArchivesModel.findById(video.archives);
+      if (!archives) return res.status(404).json({ message: "Archives not found" });
+      
+      const s3Stream = await getArchive(archives.videoKey);
       res.set({
         "Content-Type": "video/mp4",
         "Content-Disposition": `attachment; filename="${video.title}.mp4"`,
@@ -377,7 +380,10 @@ class VideosController {
         );
         console.log("[Destroy] deleteArchives finalizado");
 
-        await deleteArchive(video.videoKey);
+        const archives = await ArchivesModel.findById(video.archives);
+        if (archives) {
+          await deleteArchive(archives.videoKey);
+        }
       }
 
       await VideosModel.findByIdAndDelete(id);
