@@ -31,28 +31,6 @@ class VideosController {
     } = req.body;
     const file = req.file;
 
-    const requiredFields = {
-      title: "Title",
-      language: "Language",
-      code: "Code",
-      country: "Country",
-      totalParticipants: "Total participants",
-      responsibles: "Responsibles",
-      context: "Context",
-      ShortDescription: "Short description",
-    };
-
-    const missingFields = Object.entries(requiredFields)
-      .filter(([field]) => !req.body[field])
-      .map(([_, name]) => name);
-
-    if (missingFields.length > 0) {
-      return res.status(400).json({
-        message: "Missing required fields!",
-        missingFields,
-      });
-    }
-
     if (!file) {
       return res.status(400).json({ message: "Arquivo não enviado" });
     }
@@ -84,26 +62,37 @@ class VideosController {
     }
 
     const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
+    console.log("🏷️ Safe title:", safeTitle);
+    console.log("📁 Thumb file:", thumbFile ? "exists" : "missing");
+    console.log("🎥 Video file:", file ? "exists" : "missing");
 
-    async function createArchiveHelper({ thumbFile, videoFile, name }) {
-      if (!thumbFile || !videoFile || !name) throw new Error("Missing required files or name");
+    const archiveRequest = {
+      body: { name: safeTitle },
+      files: {
+        thumbFile: [thumbFile],
+        videoFile: [file]
+      }
+    };
+    
 
-      const thumbName = `T-${name}.webp`;
-      const videoName = `${name}-${videoFile.originalname}`;
+    let archivesID;
+    const archiveResponse = {
+      status: () => ({
+        json: (data) => {
+          if (data.archiveId) {
+            archivesID = data.archiveId;
+            console.log("✅ Archive ID received:", archivesID);
+          } else {
+            console.error("❌ Archive creation failed:", data);
+            throw new Error(data.message || "Error creating archive");
+          }
+        }
+      })
+    };
 
-      const videoKey = await sendArchive(videoFile.buffer, videoName);
-      const thumbKey = await sendArchive(thumbFile.buffer, thumbName, "image/webp");
-
-      const archive = await ArchivesModel.create({ videoKey, thumbKey, name });
-
-      return archive._id;
-    }
-
-    const archivesID = await createArchiveHelper({
-      thumbFile,
-      videoFile: file,
-      name: safeTitle,
-    });
+    console.log("🚀 Calling ArchivesController.createArchives...");
+    await ArchivesController.createArchives(archiveRequest, archiveResponse);
+    console.log("✅ ArchivesController.createArchives completed, archivesID:", archivesID);
 
     const languageData = await LanguageModel.findById(language);
     if (!languageData) {
