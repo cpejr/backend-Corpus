@@ -142,7 +142,7 @@ export async function generateTranscription(videoPath, language = "en-US", title
     const languageCode = normalizeLanguageCode(language);
 
     audioPath = await extractAudio(videoPath);
-    const cloudStorageUri = await uploadToBucket(audioPath, "corpusbucket01");
+    const cloudStorageUri = await uploadToBucket(audioPath, "corpus-gcbucket");
 
     const config = {
       encoding: "FLAC",
