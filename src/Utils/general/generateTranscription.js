@@ -250,7 +250,7 @@ export async function generateTranscription(videoPath, language = "en-US", title
      vttS3Key,
     };
   } catch (error) {
-    console.error("Transcription error:", error);
+
     return {
       success: false,
       error: error.message,
@@ -262,7 +262,7 @@ export async function generateTranscription(videoPath, language = "en-US", title
       try {
         await fs.promises.unlink(audioPath);
       } catch (err) {
-        console.error("Error cleaning temporary audio:", err);
+
       }
     }
   }

@@ -53,7 +53,6 @@ class VideosController {
     await fs.promises.writeFile(tempPath, file.buffer);
 
     const videoS3Key = await sendArchive(file.buffer, file.originalname, file.mimetype);
-    console.log("Key AWS vídeo:", videoS3Key);
 
     const thumbFile = await generateThumb(tempPath);
     if (!thumbFile) {
@@ -62,9 +61,6 @@ class VideosController {
     }
 
     const safeTitle = title.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ_.-]/g, "");
-    console.log("🏷️ Safe title:", safeTitle);
-    console.log("📁 Thumb file:", thumbFile ? "exists" : "missing");
-    console.log("🎥 Video file:", file ? "exists" : "missing");
 
     const archiveRequest = {
       body: { name: safeTitle },
@@ -81,22 +77,18 @@ class VideosController {
         json: (data) => {
           if (data.archiveId) {
             archivesID = data.archiveId;
-            console.log("✅ Archive ID received:", archivesID);
           } else {
-            console.error("❌ Archive creation failed:", data);
             throw new Error(data.message || "Error creating archive");
           }
         }
       })
     };
 
-    console.log("🚀 Calling ArchivesController.createArchives...");
     await ArchivesController.createArchives(archiveRequest, archiveResponse);
-    console.log("✅ ArchivesController.createArchives completed, archivesID:", archivesID);
 
     const languageData = await LanguageModel.findById(language);
     if (!languageData) {
-      await fs.promises.unlink(tempPath).catch(console.error);
+      await fs.promises.unlink(tempPath).catch(() => {});
       return res.status(400).json({ message: "Invalid language ID" });
     }
 
@@ -121,7 +113,6 @@ class VideosController {
     };
 
     const Video = await VideosModel.create(videoData);
-    console.log("video postado:", Video);
 
     res.status(201).json({
       message: "Video successfully created",
@@ -145,8 +136,7 @@ class VideosController {
             Key: transcriptionResult.pdfS3Key,
           });
 
-          console.log("Key AWS PDF transcrição:", transcriptionResult.pdfS3Key);
-          console.log("Key AWS VTT legendas:", transcriptionResult.vttS3Key);
+
 
           await VideosModel.findByIdAndUpdate(Video._id, {
             transcription: transcriptionDoc._id,
@@ -155,22 +145,18 @@ class VideosController {
             vttS3Key: transcriptionResult.vttS3Key,
           });
 
-          console.log("Background transcription completed for video:", Video._id);
+
         } else {
-          console.error("Background transcription failed for video:", Video._id);
+
         }
       } catch (error) {
-        console.error("Background transcription error for video:", Video._id, error);
+
       } finally {
-        await fs.promises.unlink(tempPath).catch(console.error);
+        await fs.promises.unlink(tempPath).catch(() => {});
       }
     });
   } catch (error) {
-    console.error("Server error:", {
-      message: error.message,
-      stack: error.stack,
-      body: req.body,
-    });
+
     return res.status(500).json({
       message: "Server error",
       error: error.message,
@@ -198,7 +184,7 @@ class VideosController {
 
       s3Stream.pipe(res);
     } catch (error) {
-      console.error("Error downloading video:", error);
+
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -240,7 +226,7 @@ class VideosController {
 
   async GetVideoByParameters(req, res) {
     try {
-      console.log(req.query);
+
       const { totalParticipants, birthday, duration, country, language } = req.query;
       let filter = {};
 
@@ -278,7 +264,7 @@ class VideosController {
         .populate("language")
         .populate("ManualTranscriptionArchive");
 
-      console.log("Filtros aplicados:", JSON.stringify(filter, null, 2));
+
       return res.status(200).json(videos);
     } catch (error) {
       res.status(500).json({ message: "Not found", error: error.message });
@@ -287,9 +273,7 @@ class VideosController {
 
   async UpdateVideo(req, res) {
     try {
-      console.log("🔄 Iniciando atualização de vídeo...");
       const { id } = req.params;
-      console.log("🆔 ID recebido:", id);
 
       if ("transcription" in req.body) delete req.body.transcription;
 
@@ -335,13 +319,13 @@ class VideosController {
 
         updatedVideo.ManualTranscriptionArchive = archivesID;
         await updatedVideo.save();
-        console.log("💾 Transcrição manual associada ao vídeo com sucesso:", archivesID);
-      } else console.log("ℹ️ Nenhum arquivo de transcrição manual enviado.");
 
-      console.log("✅ Atualização finalizada. Retornando vídeo atualizado.");
+      }
+
+
       return res.status(200).json(updatedVideo.toObject());
     } catch (error) {
-      console.error("❌ Erro ao atualizar vídeo:", error);
+
       return res.status(500).json({ message: "Error updating video", error: error.message });
     }
   }
@@ -349,17 +333,14 @@ class VideosController {
   async Destroy(req, res) {
     try {
       const { id } = req.params;
-      console.log(`[Destroy] Recebido id: ${id}`);
-
       const video = await VideosModel.findById(id);
-      console.log("[Destroy] Vídeo buscado no banco:", video);
 
       if (!video) return res.status(404).json({ message: "Video not found" });
 
       const manualtranscription = video.ManualTranscriptionArchive;
 
       if (video.archives) {
-        console.log("[Destroy] Chamando deleteArchives com id:", video.archives._id);
+
         await ArchivesController.deleteArchives(
           { params: { id: video.archives._id } },
           {
@@ -367,7 +348,6 @@ class VideosController {
             json: (obj) => {},
           }
         );
-        console.log("[Destroy] deleteArchives finalizado");
 
         const archives = await ArchivesModel.findById(video.archives);
         if (archives) {
@@ -376,7 +356,6 @@ class VideosController {
       }
 
       await VideosModel.findByIdAndDelete(id);
-      console.log("[Destroy] Vídeo deletado do banco");
 
       if (manualtranscription) {
         const manualtranscriptionarchive = await ManualTranscriptionArchiveModel.findById(
@@ -390,7 +369,7 @@ class VideosController {
 
       return res.status(200).json({ message: "Video successfully deleted!" });
     } catch (error) {
-      console.error("[Destroy] Error deleting video:", error);
+
       return res.status(500).json({ message: "Error deleting video" });
     }
   }
